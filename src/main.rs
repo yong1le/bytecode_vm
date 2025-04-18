@@ -25,10 +25,10 @@ fn main() {
             for c in file_contents.chars() {
                 match c {
                     '(' => {
-                        println!("LEFT PAREN ( null")
+                        println!("LEFT_PAREN ( null")
                     }
                     ')' => {
-                        println!("RIGHT PAREN ) null")
+                        println!("RIGHT_PAREN ) null")
                     }
                     _ => {
                         writeln!(io::stderr(), "Unknown token: {}", c).unwrap();
