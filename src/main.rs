@@ -22,12 +22,22 @@ fn main() {
                 String::new()
             });
 
-            // Uncomment this block to pass the first stage
-            if !file_contents.is_empty() {
-                panic!("Scanner not implemented");
-            } else {
-                println!("EOF  null"); // Placeholder, remove this line when implementing the scanner
+            for c in file_contents.chars() {
+                match c {
+                    '(' => {
+                        println!("LEFT PAREN ( null")
+                    }
+                    ')' => {
+                        println!("RIGHT PAREN ) null")
+                    }
+                    _ => {
+                        writeln!(io::stderr(), "Unknown token: {}", c).unwrap();
+                        return;
+                    }
+                }
             }
+
+            println!("EOF  null");
         }
         _ => {
             writeln!(io::stderr(), "Unknown command: {}", command).unwrap();
