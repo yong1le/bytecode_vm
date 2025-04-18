@@ -36,6 +36,27 @@ fn main() {
                     '}' => {
                         println!("RIGHT_BRACE }} null")
                     }
+                    '*' => {
+                        println!("STAR * null")
+                    }
+                    '/' => {
+                        println!("SLASH / null")
+                    }
+                    ';' => {
+                        println!("SEMICOLON ; null")
+                    }
+                    '+' => {
+                        println!("PLUS + null")
+                    }
+                    '-' => {
+                        println!("MINUS - null")
+                    }
+                    '.' => {
+                        println!("DOT . null")
+                    }
+                    ',' => {
+                        println!("COMMA , null")
+                    }
                     _ => {
                         writeln!(io::stderr(), "Unknown token: {}", c).unwrap();
                         return;
