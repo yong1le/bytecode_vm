@@ -30,6 +30,12 @@ fn main() {
                     ')' => {
                         println!("RIGHT_PAREN ) null")
                     }
+                    '{' => {
+                        println!("LEFT_BRACE {{ null")
+                    }
+                    '}' => {
+                        println!("RIGHT_BRACE }} null")
+                    }
                     _ => {
                         writeln!(io::stderr(), "Unknown token: {}", c).unwrap();
                         return;
