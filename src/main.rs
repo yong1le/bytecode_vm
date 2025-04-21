@@ -28,30 +28,79 @@ fn main() {
                 String::new()
             });
 
-            let mut i = 1;
             let mut has_error = false;
-            for line in file_contents.lines() {
-                for c in line.chars() {
-                    let (token_type, token_str) = match c {
-                        '(' => (TokenType::LeftParen, "LEFT_PAREN"),
-                        ')' => (TokenType::RightParen, "RIGHT_PAREN"),
-                        '{' => (TokenType::LeftBrace, "LEFT_BRACE"),
-                        '}' => (TokenType::RightBrace, "RIGHT_BRACE"),
-                        '*' => (TokenType::Star, "STAR"),
-                        '/' => (TokenType::Slash, "SLASH"),
-                        ';' => (TokenType::Semicolon, "SEMICOLON"),
-                        '+' => (TokenType::Plus, "PLUS"),
-                        '-' => (TokenType::Minus, "MINUS"),
-                        '.' => (TokenType::Dot, "DOT"),
-                        ',' => (TokenType::Comma, "COMMA"),
-                        _ => (TokenType::Error, "ERROR"),
-                    };
-
-                    let token = Token {
-                        token_type,
-                        token_str: token_str.to_string(),
-                        lexeme: c.to_string(),
-                        line: i,
+            for (i, line) in file_contents.lines().enumerate() {
+                let mut chars = line.chars().peekable();
+                while let Some(c) = chars.next() {
+                    let token = match c {
+                        '(' => Token::create(TokenType::LeftParen, "LEFT_PAREN", c.to_string(), i),
+                        ')' => {
+                            Token::create(TokenType::RightParen, "RIGHT_PAREN", c.to_string(), i)
+                        }
+                        '{' => Token::create(TokenType::LeftBrace, "LEFT_BRACE", c.to_string(), i),
+                        '}' => {
+                            Token::create(TokenType::RightBrace, "RIGHT_BRACE", c.to_string(), i)
+                        }
+                        '*' => Token::create(TokenType::Star, "STAR", c.to_string(), i),
+                        '/' => Token::create(TokenType::Slash, "SLASH", c.to_string(), i),
+                        ';' => Token::create(TokenType::Semicolon, "SEMICOLON", c.to_string(), i),
+                        '+' => Token::create(TokenType::Plus, "PLUS", c.to_string(), i),
+                        '-' => Token::create(TokenType::Minus, "MINUS", c.to_string(), i),
+                        '.' => Token::create(TokenType::Dot, "DOT", c.to_string(), i),
+                        ',' => Token::create(TokenType::Comma, "COMMA", c.to_string(), i),
+                        '=' => {
+                            if chars.peek() == Some(&'=') {
+                                chars.next();
+                                Token::create(
+                                    TokenType::EqualEqual,
+                                    "EQUAL_EQUAL",
+                                    "==".to_string(),
+                                    i,
+                                )
+                            } else {
+                                Token::create(TokenType::Equal, "EQUAL", c.to_string(), i)
+                            }
+                        }
+                        // '!' => {
+                        //     if chars.peek() == Some(&'=') {
+                        //         chars.next();
+                        //         Token::create(
+                        //             TokenType::BangEqual,
+                        //             "BANG_EQUAL",
+                        //             "!=".to_string(),
+                        //             i,
+                        //         )
+                        //     } else {
+                        //         Token::create(TokenType::Bang, "BANG", c.to_string(), i)
+                        //     }
+                        // }
+                        // '<' => {
+                        //     if chars.peek() == Some(&'=') {
+                        //         chars.next();
+                        //         Token::create(
+                        //             TokenType::LessEqual,
+                        //             "LESS_EQUAL",
+                        //             "<=".to_string(),
+                        //             i,
+                        //         )
+                        //     } else {
+                        //         Token::create(TokenType::LessThan, "LESS", c.to_string(), i)
+                        //     }
+                        // }
+                        // '>' => {
+                        //     if chars.peek() == Some(&'=') {
+                        //         chars.next();
+                        //         Token::create(
+                        //             TokenType::GreaterEqual,
+                        //             "GREATER_EQUAL",
+                        //             ">=".to_string(),
+                        //             i,
+                        //         )
+                        //     } else {
+                        //         Token::create(TokenType::GreaterThan, "GREATER", c.to_string(), i)
+                        //     }
+                        // }
+                        _ => Token::create(TokenType::Error, "ERROR", c.to_string(), i),
                     };
 
                     if token.token_type == TokenType::Error {
@@ -61,12 +110,11 @@ fn main() {
                         println!("{}", token)
                     }
                 }
-                i+=1;
             }
             println!("EOF  null");
 
             if has_error {
-               exit(65);
+                exit(65);
             }
         }
 
