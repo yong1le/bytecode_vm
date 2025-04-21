@@ -1,4 +1,4 @@
-use std::fmt;
+use std::fmt::{self, write};
 use std::io::{self, Write};
 use std::iter::Peekable;
 use std::str::Chars;
@@ -26,6 +26,7 @@ pub enum Token {
     GreaterEqual(u32),
     String(String, u32),
     Number(String, f64, u32),
+    Identifier(String, u32),
 }
 
 impl fmt::Display for Token {
@@ -59,6 +60,7 @@ impl fmt::Display for Token {
                 };
                 write!(f, "NUMBER {lexeme} {formatted_literal}")
             }
+            Token::Identifier(identifier, _) => write!(f, "IDENTIFIER {identifier} null"),
         }
     }
 }
@@ -79,8 +81,6 @@ impl Scanner<'_> {
         self.tokens.iter().for_each(|t| println!("{t}"));
         println!("EOF  null")
     }
-
-    fn skip_line(&self, chars: &mut Peekable<Chars<'_>>) {}
 
     fn tokenize_string(&mut self, chars: &mut Peekable<Chars<'_>>, line: u32) -> Result<(), ()> {
         let mut literal = String::new();
@@ -110,7 +110,7 @@ impl Scanner<'_> {
         chars: &mut Peekable<Chars<'_>>,
         line: u32,
     ) -> Result<(), ()> {
-        let mut literal = String::from(init);
+        let mut lexeme = String::from(init);
         let mut has_decimal = false;
         loop {
             match chars.peek() {
@@ -118,7 +118,7 @@ impl Scanner<'_> {
                     if has_decimal {
                         break;
                     }
-                    literal.push('.');
+                    lexeme.push('.');
                     chars.next();
                     if let Some(&ch) = chars.peek() {
                         if ch.is_digit(10) {
@@ -130,34 +130,54 @@ impl Scanner<'_> {
                         break;
                     }
                 }
-                Some(&'\n') | None => {
-                    chars.next();
-                    break;
-                }
                 Some(&d) if d.is_digit(10) => {
-                    literal.push(d);
+                    lexeme.push(d);
                     chars.next();
                 }
-                Some(_) => {
+                Some(_) | None => {
                     break;
                 }
             }
         }
-        if literal.ends_with('.') {
+        if lexeme.ends_with('.') {
             self.tokens.push(Token::Number(
-                literal[..literal.len() - 1].to_string(),
-                literal.parse().unwrap(),
+                lexeme[..lexeme.len() - 1].to_string(),
+                lexeme.parse().unwrap(),
                 line,
             ));
             self.tokens.push(Token::Dot(line))
         } else {
             self.tokens.push(Token::Number(
-                literal.to_string(),
-                literal.parse().unwrap(),
+                lexeme.to_string(),
+                lexeme.parse().unwrap(),
                 line,
             ));
         }
 
+        Ok(())
+    }
+
+    fn tokenize_identifier(
+        &mut self,
+        init: char,
+        chars: &mut Peekable<Chars<'_>>,
+        line: u32,
+    ) -> Result<(), ()> {
+        let mut lexeme = String::from(init);
+
+        loop {
+            match chars.peek() {
+                Some(&ch) if ch.is_alphanumeric() || ch == '_' => {
+                    chars.next();
+                    lexeme.push(ch);
+                }
+                Some(_) | None => {
+                    break;
+                }
+            };
+        }
+
+        self.tokens.push(Token::Identifier(lexeme, line));
         Ok(())
     }
 
@@ -220,11 +240,23 @@ impl Scanner<'_> {
                             has_error = true;
                             writeln!(
                                 io::stderr(),
-                                "[line {}] Error: Invalided integer literal.",
+                                "[line {}] Error: Invalided integer.",
                                 line
                             )
                             .unwrap();
                         })
+                }
+                ch if ch.is_alphabetic() || ch == '_' => {
+                    self.tokenize_identifier(ch, &mut chars, line)
+                        .unwrap_or_else(|_| {
+                            has_error = true;
+                            writeln!(
+                                io::stderr(),
+                                "[line {}] Error: Invalided identifier.",
+                                line
+                            )
+                            .unwrap();
+                        });
                 }
                 '/' => {
                     if chars.peek() == Some(&'/') {
