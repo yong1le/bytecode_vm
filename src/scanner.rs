@@ -80,9 +80,7 @@ impl Scanner<'_> {
         println!("EOF  null")
     }
 
-    fn token_is_digit(&self, token: char) -> bool {
-        return token >= '0' && token <= '9';
-    }
+    fn skip_line(&self, chars: &mut Peekable<Chars<'_>>) {}
 
     fn tokenize_string(&mut self, chars: &mut Peekable<Chars<'_>>, line: u32) -> Result<(), ()> {
         let mut literal = String::new();
@@ -114,47 +112,52 @@ impl Scanner<'_> {
     ) -> Result<(), ()> {
         let mut literal = String::from(init);
         let mut has_decimal = false;
-        let mut prev_decimal = false;
         loop {
             match chars.peek() {
                 Some(&'.') => {
                     if has_decimal {
-                        return Err(());
+                        break;
+                    }
+                    chars.next();
+                    if let Some(&ch) = chars.peek() {
+                        if ch.is_digit(10) {
+                            literal.push('.');
+                            has_decimal = true;
+                        } else {
+                            return Err(());
+                        }
                     } else {
-                        chars.next();
-                        prev_decimal = true;
+                        return Err(());
                     }
                 }
                 Some(&'\n') | None => {
-                    if prev_decimal {
-                        return Err(());
-                    } else {
-                        chars.next();
-                        break;
-                    }
+                    chars.next();
+                    break;
+                }
+                Some(&d) if d.is_digit(10) => {
+                    literal.push(d);
+                    chars.next();
                 }
                 Some(&ch) => {
-                    if self.token_is_digit(ch) {
-                        if prev_decimal {
-                            literal.push('.');
-                            literal.push(ch);
-                            has_decimal = true;
-                            prev_decimal = false;
-                        } else {
-                            literal.push(ch)
-                        }
-                        chars.next();
-                    } else {
-                        return Err(());
-                    }
+                    return Err(());
                 }
             }
         }
-        self.tokens.push(Token::Number(
-            literal.to_string(),
-            literal.parse().unwrap(),
-            line,
-        ));
+        if literal.ends_with('.') {
+            self.tokens.push(Token::Number(
+                literal[..literal.len() - 1].to_string(),
+                literal.parse().unwrap(),
+                line,
+            ));
+            self.tokens.push(Token::Dot(line))
+        } else {
+            self.tokens.push(Token::Number(
+                literal.to_string(),
+                literal.parse().unwrap(),
+                line,
+            ));
+        }
+
         Ok(())
     }
 
@@ -211,6 +214,18 @@ impl Scanner<'_> {
                     has_error = true;
                     writeln!(io::stderr(), "[line {}] Error: Unterminated string.", line).unwrap();
                 }),
+                d if d.is_digit(10) => {
+                    self.tokenize_number(d, &mut chars, line)
+                        .unwrap_or_else(|_| {
+                            has_error = true;
+                            writeln!(
+                                io::stderr(),
+                                "[line {}] Error: Invalided integer literal.",
+                                line
+                            )
+                            .unwrap();
+                        })
+                }
                 '/' => {
                     if chars.peek() == Some(&'/') {
                         while chars.peek() != Some(&'\n') && chars.peek() != None {
@@ -224,28 +239,15 @@ impl Scanner<'_> {
                 '\n' => {
                     line += 1;
                 }
-                ch => {
-                    if self.token_is_digit(ch) {
-                        self.tokenize_number(ch, &mut chars, line)
-                            .unwrap_or_else(|_| {
-                                has_error = true;
-                                writeln!(
-                                    io::stderr(),
-                                    "[line {}] Error: Invalided integer literal.",
-                                    line
-                                )
-                                .unwrap();
-                            })
-                    } else {
-                        has_error = true;
-                        writeln!(
-                            io::stderr(),
-                            "[line {}] Error: Unexpected character: {}",
-                            line,
-                            c
-                        )
-                        .unwrap();
-                    }
+                _ => {
+                    has_error = true;
+                    writeln!(
+                        io::stderr(),
+                        "[line {}] Error: Unexpected character: {}",
+                        line,
+                        c
+                    )
+                    .unwrap();
                 }
             };
         }
