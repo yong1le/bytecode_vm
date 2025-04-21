@@ -1,4 +1,4 @@
-use std::fmt::{self, write};
+use std::fmt::{self};
 use std::io::{self, Write};
 use std::iter::Peekable;
 use std::str::Chars;
@@ -27,6 +27,23 @@ pub enum Token {
     String(String, u32),
     Number(String, f64, u32),
     Identifier(String, u32),
+
+    And(u32),
+    Class(u32),
+    Else(u32),
+    False(u32),
+    For(u32),
+    Fun(u32),
+    If(u32),
+    Nil(u32),
+    Or(u32),
+    Print(u32),
+    Return(u32),
+    Super(u32),
+    This(u32),
+    True(u32),
+    Var(u32),
+    While(u32),
 }
 
 impl fmt::Display for Token {
@@ -61,6 +78,22 @@ impl fmt::Display for Token {
                 write!(f, "NUMBER {lexeme} {formatted_literal}")
             }
             Token::Identifier(identifier, _) => write!(f, "IDENTIFIER {identifier} null"),
+            Token::And(_) => write!(f, "AND and null"),
+            Token::Class(_) => write!(f, "CLASS class null"),
+            Token::Else(_) => write!(f, "ELSE else null"),
+            Token::False(_) => write!(f, "FALSE false null"),
+            Token::For(_) => write!(f, "FOR for null"),
+            Token::Fun(_) => write!(f, "FUN fun null"),
+            Token::If(_) => write!(f, "IF if null"),
+            Token::Nil(_) => write!(f, "NIL nil null"),
+            Token::Or(_) => write!(f, "OR or null"),
+            Token::Print(_) => write!(f, "PRINT print null"),
+            Token::Return(_) => write!(f, "RETURN return null"),
+            Token::Super(_) => write!(f, "SUPER super null"),
+            Token::This(_) => write!(f, "THIS this null"),
+            Token::True(_) => write!(f, "TRUE true null"),
+            Token::Var(_) => write!(f, "VAR var null"),
+            Token::While(_) => write!(f, "WHILE while null"),
         }
     }
 }
@@ -177,7 +210,28 @@ impl Scanner<'_> {
             };
         }
 
-        self.tokens.push(Token::Identifier(lexeme, line));
+        match lexeme.as_str() {
+            "and" => self.tokens.push(Token::And(line)),
+            "class" => self.tokens.push(Token::Class(line)),
+            "else" => self.tokens.push(Token::Else(line)),
+            "false" => self.tokens.push(Token::False(line)),
+            "for" => self.tokens.push(Token::For(line)),
+            "fun" => self.tokens.push(Token::Fun(line)),
+            "if" => self.tokens.push(Token::If(line)),
+            "nil" => self.tokens.push(Token::Nil(line)),
+            "or" => self.tokens.push(Token::Or(line)),
+            "print" => self.tokens.push(Token::Print(line)),
+            "return" => self.tokens.push(Token::Return(line)),
+            "super" => self.tokens.push(Token::Super(line)),
+            "this" => self.tokens.push(Token::This(line)),
+            "true" => self.tokens.push(Token::True(line)),
+            "var" => self.tokens.push(Token::Var(line)),
+            "while" => self.tokens.push(Token::While(line)),
+            _ => {
+                self.tokens.push(Token::Identifier(lexeme, line));
+            }
+        }
+
         Ok(())
     }
 
@@ -238,24 +292,16 @@ impl Scanner<'_> {
                     self.tokenize_number(d, &mut chars, line)
                         .unwrap_or_else(|_| {
                             has_error = true;
-                            writeln!(
-                                io::stderr(),
-                                "[line {}] Error: Invalided integer.",
-                                line
-                            )
-                            .unwrap();
+                            writeln!(io::stderr(), "[line {}] Error: Invalided integer.", line)
+                                .unwrap();
                         })
                 }
                 ch if ch.is_alphabetic() || ch == '_' => {
                     self.tokenize_identifier(ch, &mut chars, line)
                         .unwrap_or_else(|_| {
                             has_error = true;
-                            writeln!(
-                                io::stderr(),
-                                "[line {}] Error: Invalided identifier.",
-                                line
-                            )
-                            .unwrap();
+                            writeln!(io::stderr(), "[line {}] Error: Invalided identifier.", line)
+                                .unwrap();
                         });
                 }
                 '/' => {
