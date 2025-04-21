@@ -33,21 +33,33 @@ fn main() {
                 let mut chars = line.chars().peekable();
                 while let Some(c) = chars.next() {
                     let token = match c {
-                        '(' => Token::create(TokenType::LeftParen, "LEFT_PAREN", c.to_string(), i),
-                        ')' => {
-                            Token::create(TokenType::RightParen, "RIGHT_PAREN", c.to_string(), i)
+                        '(' => {
+                            Token::create(TokenType::LeftParen, "LEFT_PAREN", c.to_string(), i + 1)
                         }
-                        '{' => Token::create(TokenType::LeftBrace, "LEFT_BRACE", c.to_string(), i),
-                        '}' => {
-                            Token::create(TokenType::RightBrace, "RIGHT_BRACE", c.to_string(), i)
+                        ')' => Token::create(
+                            TokenType::RightParen,
+                            "RIGHT_PAREN",
+                            c.to_string(),
+                            i + 1,
+                        ),
+                        '{' => {
+                            Token::create(TokenType::LeftBrace, "LEFT_BRACE", c.to_string(), i + 1)
                         }
-                        '*' => Token::create(TokenType::Star, "STAR", c.to_string(), i),
-                        '/' => Token::create(TokenType::Slash, "SLASH", c.to_string(), i),
-                        ';' => Token::create(TokenType::Semicolon, "SEMICOLON", c.to_string(), i),
-                        '+' => Token::create(TokenType::Plus, "PLUS", c.to_string(), i),
-                        '-' => Token::create(TokenType::Minus, "MINUS", c.to_string(), i),
-                        '.' => Token::create(TokenType::Dot, "DOT", c.to_string(), i),
-                        ',' => Token::create(TokenType::Comma, "COMMA", c.to_string(), i),
+                        '}' => Token::create(
+                            TokenType::RightBrace,
+                            "RIGHT_BRACE",
+                            c.to_string(),
+                            i + 1,
+                        ),
+                        '*' => Token::create(TokenType::Star, "STAR", c.to_string(), i + 1),
+                        '/' => Token::create(TokenType::Slash, "SLASH", c.to_string(), i + 1),
+                        ';' => {
+                            Token::create(TokenType::Semicolon, "SEMICOLON", c.to_string(), i + 1)
+                        }
+                        '+' => Token::create(TokenType::Plus, "PLUS", c.to_string(), i + 1),
+                        '-' => Token::create(TokenType::Minus, "MINUS", c.to_string(), i + 1),
+                        '.' => Token::create(TokenType::Dot, "DOT", c.to_string(), i + 1),
+                        ',' => Token::create(TokenType::Comma, "COMMA", c.to_string(), i + 1),
                         '=' => {
                             if chars.peek() == Some(&'=') {
                                 chars.next();
@@ -55,10 +67,10 @@ fn main() {
                                     TokenType::EqualEqual,
                                     "EQUAL_EQUAL",
                                     "==".to_string(),
-                                    i,
+                                    i + 1,
                                 )
                             } else {
-                                Token::create(TokenType::Equal, "EQUAL", c.to_string(), i)
+                                Token::create(TokenType::Equal, "EQUAL", c.to_string(), i + 1)
                             }
                         }
                         // '!' => {
@@ -68,10 +80,10 @@ fn main() {
                         //             TokenType::BangEqual,
                         //             "BANG_EQUAL",
                         //             "!=".to_string(),
-                        //             i,
+                        //             i+1,
                         //         )
                         //     } else {
-                        //         Token::create(TokenType::Bang, "BANG", c.to_string(), i)
+                        //         Token::create(TokenType::Bang, "BANG", c.to_string(), i+1)
                         //     }
                         // }
                         // '<' => {
@@ -81,10 +93,10 @@ fn main() {
                         //             TokenType::LessEqual,
                         //             "LESS_EQUAL",
                         //             "<=".to_string(),
-                        //             i,
+                        //             i+1,
                         //         )
                         //     } else {
-                        //         Token::create(TokenType::LessThan, "LESS", c.to_string(), i)
+                        //         Token::create(TokenType::LessThan, "LESS", c.to_string(), i+1)
                         //     }
                         // }
                         // '>' => {
@@ -94,13 +106,13 @@ fn main() {
                         //             TokenType::GreaterEqual,
                         //             "GREATER_EQUAL",
                         //             ">=".to_string(),
-                        //             i,
+                        //             i+1,
                         //         )
                         //     } else {
-                        //         Token::create(TokenType::GreaterThan, "GREATER", c.to_string(), i)
+                        //         Token::create(TokenType::GreaterThan, "GREATER", c.to_string(), i+1)
                         //     }
                         // }
-                        _ => Token::create(TokenType::Error, "ERROR", c.to_string(), i),
+                        _ => Token::create(TokenType::Error, "ERROR", c.to_string(), i + 1),
                     };
 
                     if token.token_type == TokenType::Error {
