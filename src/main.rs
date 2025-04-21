@@ -6,8 +6,6 @@ use std::io::{self, Write};
 use std::process::exit;
 
 use scanner::Scanner;
-use scanner::Token;
-use scanner::TokenType;
 
 fn main() {
     let args: Vec<String> = env::args().collect();

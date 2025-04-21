@@ -22,19 +22,47 @@ pub enum TokenType {
     GreaterThan,
     LessEqual,
     GreaterEqual,
+    String,
+}
+
+impl fmt::Display for TokenType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TokenType::LeftParen => write!(f, "LEFT_PAREN"),
+            TokenType::RightParen => write!(f, "RIGHT_PAREN"),
+            TokenType::LeftBrace => write!(f, "LEFT_BRACE"),
+            TokenType::RightBrace => write!(f, "RIGHT_BRACE"),
+            TokenType::Star => write!(f, "STAR"),
+            TokenType::Slash => write!(f, "SLASH"),
+            TokenType::Semicolon => write!(f, "SEMICOLON"),
+            TokenType::Plus => write!(f, "PLUS "),
+            TokenType::Minus => write!(f, "MINUS"),
+            TokenType::Dot => write!(f, "DOT"),
+            TokenType::Comma => write!(f, "COMMA"),
+            TokenType::Equal => write!(f, "EQUAL"),
+            TokenType::EqualEqual => write!(f, "EQUAL_EQUAL"),
+            TokenType::BangEqual => write!(f, "BANG_EQUAL"),
+            TokenType::Bang => write!(f, "BANG"),
+            TokenType::LessThan => write!(f, "LESS"),
+            TokenType::GreaterThan => write!(f, "GREATER"),
+            TokenType::LessEqual => write!(f, "LESS_EQUAL"),
+            TokenType::GreaterEqual => write!(f, "GREATER_EQUAL"),
+            TokenType::String => write!(f, "STRING"),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct Token {
     pub token_type: TokenType,
-    pub token_str: String,
+    pub literal: String,
     pub lexeme: String,
     pub line: u32,
 }
 
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {} null", self.token_str, self.lexeme)
+        write!(f, "{} {} {}", self.token_type, self.lexeme, self.literal)
     }
 }
 
@@ -51,10 +79,10 @@ impl Scanner<'_> {
         };
     }
 
-    fn add_token(&mut self, token_type: TokenType, token_str: &str, lexeme: &str, line: u32) {
+    fn add_token(&mut self, token_type: TokenType, literal: &str, lexeme: &str, line: u32) {
         self.tokens.push(Token {
             token_type,
-            token_str: token_str.to_string(),
+            literal: literal.to_string(),
             lexeme: lexeme.to_string(),
             line,
         });
@@ -72,51 +100,88 @@ impl Scanner<'_> {
 
         while let Some(c) = chars.next() {
             match c {
-                '(' => self.add_token(TokenType::LeftParen, "LEFT_PAREN", "(", line),
-                ')' => self.add_token(TokenType::RightParen, "RIGHT_PAREN", ")", line),
-                '{' => self.add_token(TokenType::LeftBrace, "LEFT_BRACE", "{", line),
-                '}' => self.add_token(TokenType::RightBrace, "RIGHT_BRACE", "}", line),
-                '*' => self.add_token(TokenType::Star, "STAR", "*", line),
-                ';' => self.add_token(TokenType::Semicolon, "SEMICOLON", ";", line),
-                '+' => self.add_token(TokenType::Plus, "PLUS", "+", line),
-                '-' => self.add_token(TokenType::Minus, "MINUS", "-", line),
-                '.' => self.add_token(TokenType::Dot, "DOT", ".", line),
-                ',' => self.add_token(TokenType::Comma, "COMMA", ",", line),
+                '(' => self.add_token(TokenType::LeftParen, "null", "(", line),
+                ')' => self.add_token(TokenType::RightParen, "null", ")", line),
+                '{' => self.add_token(TokenType::LeftBrace, "null", "{", line),
+                '}' => self.add_token(TokenType::RightBrace, "null", "}", line),
+                '*' => self.add_token(TokenType::Star, "null", "*", line),
+                ';' => self.add_token(TokenType::Semicolon, "null", ";", line),
+                '+' => self.add_token(TokenType::Plus, "null", "+", line),
+                '-' => self.add_token(TokenType::Minus, "null", "-", line),
+                '.' => self.add_token(TokenType::Dot, "null", ".", line),
+                ',' => self.add_token(TokenType::Comma, "null", ",", line),
                 '=' => {
                     if chars.peek() == Some(&'=') {
                         chars.next();
-                        self.add_token(TokenType::EqualEqual, "EQUAL_EQUAL", "==", line)
+                        self.add_token(TokenType::EqualEqual, "null", "==", line)
                     } else {
-                        self.add_token(TokenType::Equal, "EQUAL", "=", line)
+                        self.add_token(TokenType::Equal, "null", "=", line)
                     }
                 }
                 '!' => {
                     if chars.peek() == Some(&'=') {
                         chars.next();
-                        self.add_token(TokenType::BangEqual, "BANG_EQUAL", "!=", line)
+                        self.add_token(TokenType::BangEqual, "null", "!=", line)
                     } else {
-                        self.add_token(TokenType::Bang, "BANG", "!", line)
+                        self.add_token(TokenType::Bang, "null", "!", line)
                     }
                 }
                 '<' => {
                     if chars.peek() == Some(&'=') {
                         chars.next();
-                        self.add_token(TokenType::LessEqual, "LESS_EQUAL", "<=", line)
+                        self.add_token(TokenType::LessEqual, "null", "<=", line)
                     } else {
-                        self.add_token(TokenType::LessThan, "LESS", "<", line)
+                        self.add_token(TokenType::LessThan, "null", "<", line)
                     }
                 }
                 '>' => {
                     if chars.peek() == Some(&'=') {
                         chars.next();
-                        self.add_token(TokenType::GreaterEqual, "GREATER_EQUAL", ">=", line)
+                        self.add_token(TokenType::GreaterEqual, "null", ">=", line)
                     } else {
-                        self.add_token(TokenType::GreaterThan, "GREATER", ">", line)
+                        self.add_token(TokenType::GreaterThan, "null", ">", line)
+                    }
+                }
+                '"' => {
+                    let mut literal = String::from("\"");
+                    let mut unterminated = false;
+                    loop {
+                        match chars.peek() {
+                            Some(&'"') => {
+                                chars.next();
+                                break;
+                            }
+
+                            Some(&'\n') | None => {
+                                has_error = true;
+                                unterminated = true;
+                                writeln!(
+                                    io::stderr(),
+                                    "[line {}] Error: Unterminated string.",
+                                    line
+                                )
+                                .unwrap();
+                                break;
+                            }
+                            Some(&ch) => {
+                                literal.push(ch);
+                                chars.next();
+                            }
+                        }
+                    }
+                    literal.push('"');
+                    if !unterminated {
+                        self.add_token(
+                            TokenType::String,
+                            &literal[1..literal.len() - 1],
+                            &literal,
+                            line,
+                        );
                     }
                 }
                 '/' => {
                     if chars.peek() == Some(&'/') {
-                        while chars.peek() != Some(&'\n') && chars.peek() != None{
+                        while chars.peek() != Some(&'\n') && chars.peek() != None {
                             chars.next();
                         }
                     } else {
