@@ -35,7 +35,7 @@ impl fmt::Display for TokenType {
             TokenType::Star => write!(f, "STAR"),
             TokenType::Slash => write!(f, "SLASH"),
             TokenType::Semicolon => write!(f, "SEMICOLON"),
-            TokenType::Plus => write!(f, "PLUS "),
+            TokenType::Plus => write!(f, "PLUS"),
             TokenType::Minus => write!(f, "MINUS"),
             TokenType::Dot => write!(f, "DOT"),
             TokenType::Comma => write!(f, "COMMA"),
