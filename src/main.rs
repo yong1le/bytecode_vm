@@ -73,19 +73,19 @@ fn main() {
                                 Token::create(TokenType::Equal, "EQUAL", c.to_string(), i + 1)
                             }
                         }
-                        // '!' => {
-                        //     if chars.peek() == Some(&'=') {
-                        //         chars.next();
-                        //         Token::create(
-                        //             TokenType::BangEqual,
-                        //             "BANG_EQUAL",
-                        //             "!=".to_string(),
-                        //             i+1,
-                        //         )
-                        //     } else {
-                        //         Token::create(TokenType::Bang, "BANG", c.to_string(), i+1)
-                        //     }
-                        // }
+                        '!' => {
+                            if chars.peek() == Some(&'=') {
+                                chars.next();
+                                Token::create(
+                                    TokenType::BangEqual,
+                                    "BANG_EQUAL",
+                                    "!=".to_string(),
+                                    i + 1,
+                                )
+                            } else {
+                                Token::create(TokenType::Bang, "BANG", c.to_string(), i + 1)
+                            }
+                        }
                         // '<' => {
                         //     if chars.peek() == Some(&'=') {
                         //         chars.next();
