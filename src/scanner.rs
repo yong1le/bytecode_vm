@@ -118,16 +118,16 @@ impl Scanner<'_> {
                     if has_decimal {
                         break;
                     }
+                    literal.push('.');
                     chars.next();
                     if let Some(&ch) = chars.peek() {
                         if ch.is_digit(10) {
-                            literal.push('.');
                             has_decimal = true;
                         } else {
-                            return Err(());
+                            break;
                         }
                     } else {
-                        return Err(());
+                        break;
                     }
                 }
                 Some(&'\n') | None => {
@@ -138,8 +138,8 @@ impl Scanner<'_> {
                     literal.push(d);
                     chars.next();
                 }
-                Some(&ch) => {
-                    return Err(());
+                Some(_) => {
+                    break;
                 }
             }
         }
