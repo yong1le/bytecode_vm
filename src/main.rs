@@ -5,6 +5,7 @@ use std::fs;
 use std::io::{self, Write};
 use std::process::exit;
 
+use scanner::Scanner;
 use scanner::Token;
 use scanner::TokenType;
 
@@ -28,117 +29,13 @@ fn main() {
                 String::new()
             });
 
-            let mut has_error = false;
-            for (i, line) in file_contents.lines().enumerate() {
-                let mut chars = line.chars().peekable();
-                while let Some(c) = chars.next() {
-                    let token = match c {
-                        '(' => {
-                            Token::create(TokenType::LeftParen, "LEFT_PAREN", c.to_string(), i + 1)
-                        }
-                        ')' => Token::create(
-                            TokenType::RightParen,
-                            "RIGHT_PAREN",
-                            c.to_string(),
-                            i + 1,
-                        ),
-                        '{' => {
-                            Token::create(TokenType::LeftBrace, "LEFT_BRACE", c.to_string(), i + 1)
-                        }
-                        '}' => Token::create(
-                            TokenType::RightBrace,
-                            "RIGHT_BRACE",
-                            c.to_string(),
-                            i + 1,
-                        ),
-                        '*' => Token::create(TokenType::Star, "STAR", c.to_string(), i + 1),
-                        ';' => {
-                            Token::create(TokenType::Semicolon, "SEMICOLON", c.to_string(), i + 1)
-                        }
-                        '+' => Token::create(TokenType::Plus, "PLUS", c.to_string(), i + 1),
-                        '-' => Token::create(TokenType::Minus, "MINUS", c.to_string(), i + 1),
-                        '.' => Token::create(TokenType::Dot, "DOT", c.to_string(), i + 1),
-                        ',' => Token::create(TokenType::Comma, "COMMA", c.to_string(), i + 1),
-                        '=' => {
-                            if chars.peek() == Some(&'=') {
-                                chars.next();
-                                Token::create(
-                                    TokenType::EqualEqual,
-                                    "EQUAL_EQUAL",
-                                    "==".to_string(),
-                                    i + 1,
-                                )
-                            } else {
-                                Token::create(TokenType::Equal, "EQUAL", c.to_string(), i + 1)
-                            }
-                        }
-                        '!' => {
-                            if chars.peek() == Some(&'=') {
-                                chars.next();
-                                Token::create(
-                                    TokenType::BangEqual,
-                                    "BANG_EQUAL",
-                                    "!=".to_string(),
-                                    i + 1,
-                                )
-                            } else {
-                                Token::create(TokenType::Bang, "BANG", c.to_string(), i + 1)
-                            }
-                        }
-                        '<' => {
-                            if chars.peek() == Some(&'=') {
-                                chars.next();
-                                Token::create(
-                                    TokenType::LessEqual,
-                                    "LESS_EQUAL",
-                                    "<=".to_string(),
-                                    i + 1,
-                                )
-                            } else {
-                                Token::create(TokenType::LessThan, "LESS", c.to_string(), i + 1)
-                            }
-                        }
-                        '>' => {
-                            if chars.peek() == Some(&'=') {
-                                chars.next();
-                                Token::create(
-                                    TokenType::GreaterEqual,
-                                    "GREATER_EQUAL",
-                                    ">=".to_string(),
-                                    i + 1,
-                                )
-                            } else {
-                                Token::create(
-                                    TokenType::GreaterThan,
-                                    "GREATER",
-                                    c.to_string(),
-                                    i + 1,
-                                )
-                            }
-                        }
-                        '/' => {
-                            if chars.peek() == Some(&'/') {
-                                break;
-                            }
-                            Token::create(TokenType::Slash, "SLASH", c.to_string(), i + 1)
-                        }
+            let mut scanner = Scanner::new(&file_contents);
+            let result = scanner.tokenize();
+            scanner.print();
 
-                        _ => Token::create(TokenType::Error, "ERROR", c.to_string(), i + 1),
-                    };
-
-                    if token.token_type == TokenType::Error {
-                        has_error = true;
-                        writeln!(io::stderr(), "{}", token).unwrap()
-                    } else {
-                        println!("{}", token)
-                    }
-                }
-            }
-            println!("EOF  null");
-
-            if has_error {
+            result.unwrap_or_else(|_| {
                 exit(65);
-            }
+            });
         }
 
         _ => {
