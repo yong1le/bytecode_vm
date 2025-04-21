@@ -116,7 +116,7 @@ impl Scanner<'_> {
                 }
                 '/' => {
                     if chars.peek() == Some(&'/') {
-                        while chars.peek() != Some(&'\n') {
+                        while chars.peek() != Some(&'\n') && chars.peek() != None{
                             chars.next();
                         }
                     } else {
