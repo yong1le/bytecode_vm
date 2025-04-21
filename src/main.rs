@@ -86,32 +86,37 @@ fn main() {
                                 Token::create(TokenType::Bang, "BANG", c.to_string(), i + 1)
                             }
                         }
-                        // '<' => {
-                        //     if chars.peek() == Some(&'=') {
-                        //         chars.next();
-                        //         Token::create(
-                        //             TokenType::LessEqual,
-                        //             "LESS_EQUAL",
-                        //             "<=".to_string(),
-                        //             i+1,
-                        //         )
-                        //     } else {
-                        //         Token::create(TokenType::LessThan, "LESS", c.to_string(), i+1)
-                        //     }
-                        // }
-                        // '>' => {
-                        //     if chars.peek() == Some(&'=') {
-                        //         chars.next();
-                        //         Token::create(
-                        //             TokenType::GreaterEqual,
-                        //             "GREATER_EQUAL",
-                        //             ">=".to_string(),
-                        //             i+1,
-                        //         )
-                        //     } else {
-                        //         Token::create(TokenType::GreaterThan, "GREATER", c.to_string(), i+1)
-                        //     }
-                        // }
+                        '<' => {
+                            if chars.peek() == Some(&'=') {
+                                chars.next();
+                                Token::create(
+                                    TokenType::LessEqual,
+                                    "LESS_EQUAL",
+                                    "<=".to_string(),
+                                    i + 1,
+                                )
+                            } else {
+                                Token::create(TokenType::LessThan, "LESS", c.to_string(), i + 1)
+                            }
+                        }
+                        '>' => {
+                            if chars.peek() == Some(&'=') {
+                                chars.next();
+                                Token::create(
+                                    TokenType::GreaterEqual,
+                                    "GREATER_EQUAL",
+                                    ">=".to_string(),
+                                    i + 1,
+                                )
+                            } else {
+                                Token::create(
+                                    TokenType::GreaterThan,
+                                    "GREATER",
+                                    c.to_string(),
+                                    i + 1,
+                                )
+                            }
+                        }
                         _ => Token::create(TokenType::Error, "ERROR", c.to_string(), i + 1),
                     };
 
