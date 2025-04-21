@@ -52,7 +52,6 @@ fn main() {
                             i + 1,
                         ),
                         '*' => Token::create(TokenType::Star, "STAR", c.to_string(), i + 1),
-                        '/' => Token::create(TokenType::Slash, "SLASH", c.to_string(), i + 1),
                         ';' => {
                             Token::create(TokenType::Semicolon, "SEMICOLON", c.to_string(), i + 1)
                         }
@@ -117,6 +116,13 @@ fn main() {
                                 )
                             }
                         }
+                        '/' => {
+                            if chars.peek() == Some(&'/') {
+                                break;
+                            }
+                            Token::create(TokenType::Slash, "SLASH", c.to_string(), i + 1)
+                        }
+
                         _ => Token::create(TokenType::Error, "ERROR", c.to_string(), i + 1),
                     };
 

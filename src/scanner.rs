@@ -22,6 +22,7 @@ pub enum TokenType {
     LessEqual,
     GreaterEqual,
     Error,
+    Comment,
 }
 
 #[derive(Debug, Clone)]
