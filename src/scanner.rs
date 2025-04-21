@@ -185,7 +185,7 @@ impl Scanner<'_> {
                             chars.next();
                         }
                     } else {
-                        self.add_token(TokenType::Slash, "SLASH", "/", line)
+                        self.add_token(TokenType::Slash, "null", "/", line)
                     }
                 }
                 ' ' | '\t' | '\r' => (),
