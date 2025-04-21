@@ -1,71 +1,67 @@
 use std::fmt;
 use std::io::{self, Write};
+use std::iter::Peekable;
+use std::str::Chars;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum TokenType {
-    LeftParen,
-    RightParen,
-    LeftBrace,
-    RightBrace,
-    Star,
-    Slash,
-    Semicolon,
-    Plus,
-    Minus,
-    Dot,
-    Comma,
-    Equal,
-    EqualEqual,
-    BangEqual,
-    Bang,
-    LessThan,
-    GreaterThan,
-    LessEqual,
-    GreaterEqual,
-    String,
-}
-
-impl fmt::Display for TokenType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            TokenType::LeftParen => write!(f, "LEFT_PAREN"),
-            TokenType::RightParen => write!(f, "RIGHT_PAREN"),
-            TokenType::LeftBrace => write!(f, "LEFT_BRACE"),
-            TokenType::RightBrace => write!(f, "RIGHT_BRACE"),
-            TokenType::Star => write!(f, "STAR"),
-            TokenType::Slash => write!(f, "SLASH"),
-            TokenType::Semicolon => write!(f, "SEMICOLON"),
-            TokenType::Plus => write!(f, "PLUS"),
-            TokenType::Minus => write!(f, "MINUS"),
-            TokenType::Dot => write!(f, "DOT"),
-            TokenType::Comma => write!(f, "COMMA"),
-            TokenType::Equal => write!(f, "EQUAL"),
-            TokenType::EqualEqual => write!(f, "EQUAL_EQUAL"),
-            TokenType::BangEqual => write!(f, "BANG_EQUAL"),
-            TokenType::Bang => write!(f, "BANG"),
-            TokenType::LessThan => write!(f, "LESS"),
-            TokenType::GreaterThan => write!(f, "GREATER"),
-            TokenType::LessEqual => write!(f, "LESS_EQUAL"),
-            TokenType::GreaterEqual => write!(f, "GREATER_EQUAL"),
-            TokenType::String => write!(f, "STRING"),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Token {
-    pub token_type: TokenType,
-    pub literal: String,
-    pub lexeme: String,
-    pub line: u32,
+pub enum Token {
+    LeftParen(u32),
+    RightParen(u32),
+    LeftBrace(u32),
+    RightBrace(u32),
+    Star(u32),
+    Slash(u32),
+    Semicolon(u32),
+    Plus(u32),
+    Minus(u32),
+    Dot(u32),
+    Comma(u32),
+    Equal(u32),
+    EqualEqual(u32),
+    BangEqual(u32),
+    Bang(u32),
+    LessThan(u32),
+    GreaterThan(u32),
+    LessEqual(u32),
+    GreaterEqual(u32),
+    String(String, u32),
+    Number(String, f64, u32),
 }
 
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {} {}", self.token_type, self.lexeme, self.literal)
+        match self {
+            Token::LeftParen(_) => write!(f, "LEFT_PAREN ( null"),
+            Token::RightParen(_) => write!(f, "RIGHT_PAREN ) null"),
+            Token::LeftBrace(_) => write!(f, "LEFT_BRACE {{ null"),
+            Token::RightBrace(_) => write!(f, "RIGHT_BRACE }} null"),
+            Token::Star(_) => write!(f, "STAR * null"),
+            Token::Slash(_) => write!(f, "SLASH / null"),
+            Token::Semicolon(_) => write!(f, "SEMICOLON ; null"),
+            Token::Plus(_) => write!(f, "PLUS + null"),
+            Token::Minus(_) => write!(f, "MINUS - null"),
+            Token::Dot(_) => write!(f, "DOT . null"),
+            Token::Comma(_) => write!(f, "COMMA , null"),
+            Token::Equal(_) => write!(f, "EQUAL = null"),
+            Token::EqualEqual(_) => write!(f, "EQUAL_EQUAL == null"),
+            Token::BangEqual(_) => write!(f, "BANG_EQUAL != null"),
+            Token::Bang(_) => write!(f, "BANG ! null"),
+            Token::LessThan(_) => write!(f, "LESS < null"),
+            Token::GreaterThan(_) => write!(f, "GREATER > null"),
+            Token::LessEqual(_) => write!(f, "LESS_EQUAL <= null"),
+            Token::GreaterEqual(_) => write!(f, "GREATER_EQUAL >= null"),
+            Token::String(literal, _) => write!(f, "STRING \"{literal}\" {literal}"),
+            Token::Number(lexeme, literal, _) => {
+                let formatted_literal = if literal.fract() == 0.0 {
+                    format!("{:.1}", literal)
+                } else {
+                    format!("{}", literal)
+                };
+                write!(f, "NUMBER {lexeme} {formatted_literal}")
+            }
+        }
     }
 }
-
 pub struct Scanner<'a> {
     source: &'a String,
     tokens: Vec<Token>,
@@ -79,18 +75,87 @@ impl Scanner<'_> {
         };
     }
 
-    fn add_token(&mut self, token_type: TokenType, literal: &str, lexeme: &str, line: u32) {
-        self.tokens.push(Token {
-            token_type,
-            literal: literal.to_string(),
-            lexeme: lexeme.to_string(),
-            line,
-        });
-    }
-
     pub fn print(&self) {
         self.tokens.iter().for_each(|t| println!("{t}"));
         println!("EOF  null")
+    }
+
+    fn token_is_digit(&self, token: char) -> bool {
+        return token >= '0' && token <= '9';
+    }
+
+    fn tokenize_string(&mut self, chars: &mut Peekable<Chars<'_>>, line: u32) -> Result<(), ()> {
+        let mut literal = String::new();
+        loop {
+            match chars.peek() {
+                Some(&'"') => {
+                    chars.next();
+                    break;
+                }
+
+                Some(&'\n') | None => {
+                    return Err(());
+                }
+                Some(&ch) => {
+                    literal.push(ch);
+                    chars.next();
+                }
+            }
+        }
+        self.tokens.push(Token::String(literal, line));
+        Ok(())
+    }
+
+    fn tokenize_number(
+        &mut self,
+        init: char,
+        chars: &mut Peekable<Chars<'_>>,
+        line: u32,
+    ) -> Result<(), ()> {
+        let mut literal = String::from(init);
+        let mut has_decimal = false;
+        let mut prev_decimal = false;
+        loop {
+            match chars.peek() {
+                Some(&'.') => {
+                    if has_decimal {
+                        return Err(());
+                    } else {
+                        chars.next();
+                        prev_decimal = true;
+                    }
+                }
+                Some(&'\n') | None => {
+                    if prev_decimal {
+                        return Err(());
+                    } else {
+                        chars.next();
+                        break;
+                    }
+                }
+                Some(&ch) => {
+                    if self.token_is_digit(ch) {
+                        if prev_decimal {
+                            literal.push('.');
+                            literal.push(ch);
+                            has_decimal = true;
+                            prev_decimal = false;
+                        } else {
+                            literal.push(ch)
+                        }
+                        chars.next();
+                    } else {
+                        return Err(());
+                    }
+                }
+            }
+        }
+        self.tokens.push(Token::Number(
+            literal.to_string(),
+            literal.parse().unwrap(),
+            line,
+        ));
+        Ok(())
     }
 
     pub fn tokenize(&mut self) -> Result<(), ()> {
@@ -100,107 +165,87 @@ impl Scanner<'_> {
 
         while let Some(c) = chars.next() {
             match c {
-                '(' => self.add_token(TokenType::LeftParen, "null", "(", line),
-                ')' => self.add_token(TokenType::RightParen, "null", ")", line),
-                '{' => self.add_token(TokenType::LeftBrace, "null", "{", line),
-                '}' => self.add_token(TokenType::RightBrace, "null", "}", line),
-                '*' => self.add_token(TokenType::Star, "null", "*", line),
-                ';' => self.add_token(TokenType::Semicolon, "null", ";", line),
-                '+' => self.add_token(TokenType::Plus, "null", "+", line),
-                '-' => self.add_token(TokenType::Minus, "null", "-", line),
-                '.' => self.add_token(TokenType::Dot, "null", ".", line),
-                ',' => self.add_token(TokenType::Comma, "null", ",", line),
+                '(' => self.tokens.push(Token::LeftParen(line)),
+                ')' => self.tokens.push(Token::RightParen(line)),
+                '{' => self.tokens.push(Token::LeftBrace(line)),
+                '}' => self.tokens.push(Token::RightBrace(line)),
+                '*' => self.tokens.push(Token::Star(line)),
+                ';' => self.tokens.push(Token::Semicolon(line)),
+                '+' => self.tokens.push(Token::Plus(line)),
+                '-' => self.tokens.push(Token::Minus(line)),
+                '.' => self.tokens.push(Token::Dot(line)),
+                ',' => self.tokens.push(Token::Comma(line)),
                 '=' => {
                     if chars.peek() == Some(&'=') {
                         chars.next();
-                        self.add_token(TokenType::EqualEqual, "null", "==", line)
+                        self.tokens.push(Token::EqualEqual(line))
                     } else {
-                        self.add_token(TokenType::Equal, "null", "=", line)
+                        self.tokens.push(Token::Equal(line))
                     }
                 }
                 '!' => {
                     if chars.peek() == Some(&'=') {
                         chars.next();
-                        self.add_token(TokenType::BangEqual, "null", "!=", line)
+                        self.tokens.push(Token::BangEqual(line))
                     } else {
-                        self.add_token(TokenType::Bang, "null", "!", line)
+                        self.tokens.push(Token::Bang(line))
                     }
                 }
                 '<' => {
                     if chars.peek() == Some(&'=') {
                         chars.next();
-                        self.add_token(TokenType::LessEqual, "null", "<=", line)
+                        self.tokens.push(Token::LessEqual(line))
                     } else {
-                        self.add_token(TokenType::LessThan, "null", "<", line)
+                        self.tokens.push(Token::LessThan(line))
                     }
                 }
                 '>' => {
                     if chars.peek() == Some(&'=') {
                         chars.next();
-                        self.add_token(TokenType::GreaterEqual, "null", ">=", line)
+                        self.tokens.push(Token::GreaterEqual(line))
                     } else {
-                        self.add_token(TokenType::GreaterThan, "null", ">", line)
+                        self.tokens.push(Token::GreaterThan(line))
                     }
                 }
-                '"' => {
-                    let mut literal = String::from("\"");
-                    let mut unterminated = false;
-                    loop {
-                        match chars.peek() {
-                            Some(&'"') => {
-                                chars.next();
-                                break;
-                            }
-
-                            Some(&'\n') | None => {
-                                has_error = true;
-                                unterminated = true;
-                                writeln!(
-                                    io::stderr(),
-                                    "[line {}] Error: Unterminated string.",
-                                    line
-                                )
-                                .unwrap();
-                                break;
-                            }
-                            Some(&ch) => {
-                                literal.push(ch);
-                                chars.next();
-                            }
-                        }
-                    }
-                    literal.push('"');
-                    if !unterminated {
-                        self.add_token(
-                            TokenType::String,
-                            &literal[1..literal.len() - 1],
-                            &literal,
-                            line,
-                        );
-                    }
-                }
+                '"' => self.tokenize_string(&mut chars, line).unwrap_or_else(|_| {
+                    has_error = true;
+                    writeln!(io::stderr(), "[line {}] Error: Unterminated string.", line).unwrap();
+                }),
                 '/' => {
                     if chars.peek() == Some(&'/') {
                         while chars.peek() != Some(&'\n') && chars.peek() != None {
                             chars.next();
                         }
                     } else {
-                        self.add_token(TokenType::Slash, "null", "/", line)
+                        self.tokens.push(Token::Slash(line))
                     }
                 }
                 ' ' | '\t' | '\r' => (),
                 '\n' => {
                     line += 1;
                 }
-                _ => {
-                    has_error = true;
-                    writeln!(
-                        io::stderr(),
-                        "[line {}] Error: Unexpected character: {}",
-                        line,
-                        c
-                    )
-                    .unwrap();
+                ch => {
+                    if self.token_is_digit(ch) {
+                        self.tokenize_number(ch, &mut chars, line)
+                            .unwrap_or_else(|_| {
+                                has_error = true;
+                                writeln!(
+                                    io::stderr(),
+                                    "[line {}] Error: Invalided integer literal.",
+                                    line
+                                )
+                                .unwrap();
+                            })
+                    } else {
+                        has_error = true;
+                        writeln!(
+                            io::stderr(),
+                            "[line {}] Error: Unexpected character: {}",
+                            line,
+                            c
+                        )
+                        .unwrap();
+                    }
                 }
             };
         }
