@@ -247,7 +247,7 @@ impl fmt::Display for ScanError {
                 write!(f, "[line {}] Error: Unterminated string.", line)
             }
             Self::UnexpectedCharacter(line, ch) => {
-                write!(f, "[line {}] Error: Unexpected character: {}.", line, ch)
+                write!(f, "[line {}] Error: Unexpected character: {}", line, ch)
             }
         }
     }
