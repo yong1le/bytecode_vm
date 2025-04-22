@@ -117,7 +117,7 @@ impl fmt::Display for Literal {
                 Literal::String(a) => a.to_string(),
                 Literal::Number(a) => {
                     if a.fract() == 0.0 {
-                        format!("{:.1}", a)
+                        format!("{}", a)
                     } else {
                         format!("{}", a)
                     }

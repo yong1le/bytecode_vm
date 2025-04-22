@@ -19,7 +19,9 @@ impl Interpreter {
                 _ => Ok(Literal::None),
             },
             Expr::Binary(t, e1, e2) => Err(EvalError::ValueError("Not impl")),
-            Expr::Grouping(e) => Err(EvalError::ValueError("Not impl")),
+            Expr::Grouping(e) =>{
+              Interpreter::evaluate(*e)
+            },
         }
     }
 }
