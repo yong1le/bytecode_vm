@@ -133,7 +133,7 @@ impl fmt::Display for Literal {
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.token {
-            TokenType::Nil => write!(f, "NIL null null"),
+            TokenType::Nil => write!(f, "NIL nil null"),
             _ => write!(f, "{} {} {}", self.token, self.lexeme, self.literal),
         }
     }
