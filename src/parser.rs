@@ -7,7 +7,8 @@ use crate::{
 };
 
 pub enum Expr {
-    Literal(Literal),                    // NUMBER, STRING, true, false, nil
+    Nil,                                 // nil
+    Literal(Literal),                    // NUMBER, STRING, true, false,
     Unary(Token, Box<Expr>),             // !, -
     Binary(Token, Box<Expr>, Box<Expr>), // +, -, *, /
     Grouping(Box<Expr>),                 // (, )
@@ -16,6 +17,7 @@ pub enum Expr {
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Expr::Nil => write!(f, "nil"),
             Expr::Literal(l) => write!(f, "{}", l),
             Expr::Unary(token, expr) => write!(f, "{}{}", expr, token.lexeme),
             Expr::Binary(token, e1, e2) => write!(f, "{}{}{}", e1, token.lexeme, e2),
@@ -97,7 +99,7 @@ impl Parser<'_> {
         match t.token {
             TokenType::True => Expr::Literal(Literal::Boolean(true)),
             TokenType::False => Expr::Literal(Literal::Boolean(false)),
-            TokenType::Nil => Expr::Literal(Literal::Nil),
+            TokenType::Nil => Expr::Nil,
             TokenType::String => Expr::Literal(t.literal.to_owned()),
             TokenType::Number => Expr::Literal(t.literal.to_owned()),
             TokenType::LeftParen => {
