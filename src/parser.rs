@@ -88,6 +88,7 @@ impl Parser<'_> {
                 TokenType::False => Expr::Literal(Literal::Boolean(false)),
                 TokenType::Nil => Expr::Literal(Literal::Nil),
                 TokenType::String => Expr::Literal(token.literal.to_owned()),
+                TokenType::Number => Expr::Literal(token.literal.to_owned()),
                 _ => panic!("Not implemented")
             }
             Some(Err(_)) => panic!("Not implemented"),
