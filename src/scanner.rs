@@ -128,7 +128,7 @@ impl<'a> Scanner<'a> {
         if token == TokenType::Nil {
             Ok((token, Literal::Nil, lexeme))
         } else {
-            Ok((token, Literal::Nil, lexeme))
+            Ok((token, Literal::None, lexeme))
         }
     }
 
@@ -173,47 +173,47 @@ impl Iterator for Scanner<'_> {
         self.advance();
 
         let result = match c {
-            '(' => Ok((TokenType::LeftParen, Literal::Nil, "(".to_string())),
-            ')' => Ok((TokenType::RightParen, Literal::Nil, ")".to_string())),
-            '{' => Ok((TokenType::LeftBrace, Literal::Nil, "{".to_string())),
-            '}' => Ok((TokenType::RightBrace, Literal::Nil, "}".to_string())),
-            '*' => Ok((TokenType::Star, Literal::Nil, "*".to_string())),
-            ';' => Ok((TokenType::Semicolon, Literal::Nil, ";".to_string())),
-            '+' => Ok((TokenType::Plus, Literal::Nil, "+".to_string())),
-            '-' => Ok((TokenType::Minus, Literal::Nil, "-".to_string())),
-            '.' => Ok((TokenType::Dot, Literal::Nil, ".".to_string())),
-            ',' => Ok((TokenType::Comma, Literal::Nil, ",".to_string())),
-            '/' => Ok((TokenType::Slash, Literal::Nil, "/".to_string())),
+            '(' => Ok((TokenType::LeftParen, Literal::None, "(".to_string())),
+            ')' => Ok((TokenType::RightParen, Literal::None, ")".to_string())),
+            '{' => Ok((TokenType::LeftBrace, Literal::None, "{".to_string())),
+            '}' => Ok((TokenType::RightBrace, Literal::None, "}".to_string())),
+            '*' => Ok((TokenType::Star, Literal::None, "*".to_string())),
+            ';' => Ok((TokenType::Semicolon, Literal::None, ";".to_string())),
+            '+' => Ok((TokenType::Plus, Literal::None, "+".to_string())),
+            '-' => Ok((TokenType::Minus, Literal::None, "-".to_string())),
+            '.' => Ok((TokenType::Dot, Literal::None, ".".to_string())),
+            ',' => Ok((TokenType::Comma, Literal::None, ",".to_string())),
+            '/' => Ok((TokenType::Slash, Literal::None, "/".to_string())),
             '=' => {
                 if self.current == Some('=') {
                     self.advance();
-                    Ok((TokenType::EqualEqual, Literal::Nil, "==".to_string()))
+                    Ok((TokenType::EqualEqual, Literal::None, "==".to_string()))
                 } else {
-                    Ok((TokenType::Equal, Literal::Nil, "=".to_string()))
+                    Ok((TokenType::Equal, Literal::None, "=".to_string()))
                 }
             }
             '!' => {
                 if self.current == Some('=') {
                     self.advance();
-                    Ok((TokenType::BangEqual, Literal::Nil, "!=".to_string()))
+                    Ok((TokenType::BangEqual, Literal::None, "!=".to_string()))
                 } else {
-                    Ok((TokenType::Bang, Literal::Nil, "!".to_string()))
+                    Ok((TokenType::Bang, Literal::None, "!".to_string()))
                 }
             }
             '<' => {
                 if self.current == Some('=') {
                     self.advance();
-                    Ok((TokenType::LessEqual, Literal::Nil, "<=".to_string()))
+                    Ok((TokenType::LessEqual, Literal::None, "<=".to_string()))
                 } else {
-                    Ok((TokenType::LessThan, Literal::Nil, "<".to_string()))
+                    Ok((TokenType::LessThan, Literal::None, "<".to_string()))
                 }
             }
             '>' => {
                 if self.current == Some('=') {
                     self.advance();
-                    Ok((TokenType::GreaterEqual, Literal::Nil, ">=".to_string()))
+                    Ok((TokenType::GreaterEqual, Literal::None, ">=".to_string()))
                 } else {
-                    Ok((TokenType::GreaterThan, Literal::Nil, ">".to_string()))
+                    Ok((TokenType::GreaterThan, Literal::None, ">".to_string()))
                 }
             }
             '"' => self.tokenize_string(),
