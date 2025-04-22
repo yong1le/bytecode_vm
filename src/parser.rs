@@ -16,7 +16,7 @@ pub enum Expr {
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Expr::Literal(token) => write!(f, "{}", token),
+            Expr::Literal(l) => write!(f, "{}", l),
             Expr::Unary(token, expr) => write!(f, "{}{}", expr, token.lexeme),
             Expr::Binary(token, e1, e2) => write!(f, "{}{}{}", e1, token.lexeme, e2),
             Expr::Grouping(e) => write!(f, "({})", e),
