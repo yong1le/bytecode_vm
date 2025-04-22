@@ -9,7 +9,7 @@ use crate::{
 pub enum Expr {
     Literal(Literal),                    // NUMBER, STRING, true, false, nil
     Unary(Token, Box<Expr>),             // !, -
-    Binary(Token, Box<Expr>, Box<Expr>), // +, -, *, /
+    Binary(Token, Box<Expr>, Box<Expr>), // +, -, *, /, <, <=, >, >=
     Grouping(Box<Expr>),                 // (, )
 }
 
