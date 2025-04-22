@@ -85,9 +85,26 @@ impl Parser<'_> {
         return left;
     }
     fn term(&mut self) -> Expr {
-        let mut left = self.factor();
+        let mut expr = self.factor();
 
-        return left;
+        loop {
+            let t = match &self.current {
+                Some(Ok(t)) => t.clone(),
+                Some(Err(e)) => panic!("{}", e),
+                None => return expr,
+            };
+
+            match t.token {
+                TokenType::Plus | TokenType::Minus => {
+                    self.advance();
+                    let right = self.factor();
+                    expr = Expr::Binary(t, Box::new(expr), Box::new(right))
+                }
+                _ => break,
+            }
+        }
+
+        return expr;
     }
     fn factor(&mut self) -> Expr {
         let mut expr = self.unary();
