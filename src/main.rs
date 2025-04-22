@@ -12,6 +12,7 @@ use interpreter::EvalError;
 use interpreter::Interpreter;
 use parser::Parser;
 use scanner::Scanner;
+use token::Literal;
 
 fn read_file(filename: &String) -> String {
     fs::read_to_string(filename).unwrap_or_else(|_| {
@@ -79,9 +80,12 @@ fn main() {
             if let Some(expr) = parser.next() {
                 match expr {
                     Ok(expr) => match Interpreter::evaluate(expr) {
-                        Ok(val) => {
-                            println!("{val}");
-                        }
+                        Ok(val) => match val {
+                            Literal::Number(n) => {
+                                println!("{n}")
+                            }
+                            _ => println!("{val}"),
+                        },
                         Err(EvalError::ValueError(e)) => {
                             writeln!(io::stderr(), "{e}");
                         }
