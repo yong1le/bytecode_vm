@@ -76,13 +76,51 @@ impl Parser<'_> {
         self.equality()
     }
     fn equality(&mut self) -> Expr {
-        let mut left = self.comparison();
+        let mut expr = self.comparison();
 
-        return left;
+        loop {
+            let t = match &self.current {
+                Some(Ok(t)) => t.clone(),
+                Some(Err(e)) => panic!("{}", e),
+                None => return expr,
+            };
+
+            match t.token {
+                TokenType::EqualEqual | TokenType::BangEqual => {
+                    self.advance();
+                    let right = self.comparison();
+                    expr = Expr::Binary(t, Box::new(expr), Box::new(right))
+                }
+                _ => break,
+            }
+        }
+
+        return expr;
     }
     fn comparison(&mut self) -> Expr {
-        let mut left = self.term();
-        return left;
+        let mut expr = self.term();
+
+        loop {
+            let t = match &self.current {
+                Some(Ok(t)) => t.clone(),
+                Some(Err(e)) => panic!("{}", e),
+                None => return expr,
+            };
+
+            match t.token {
+                TokenType::LessEqual
+                | TokenType::LessThan
+                | TokenType::GreaterEqual
+                | TokenType::GreaterThan => {
+                    self.advance();
+                    let right = self.term();
+                    expr = Expr::Binary(t, Box::new(expr), Box::new(right))
+                }
+                _ => break,
+            }
+        }
+
+        return expr;
     }
     fn term(&mut self) -> Expr {
         let mut expr = self.factor();
