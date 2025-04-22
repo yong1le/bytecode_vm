@@ -87,14 +87,18 @@ fn main() {
                             _ => println!("{val}"),
                         },
                         Err(EvalError::ValueError(e)) => {
+                            exit_code = 70;
                             writeln!(io::stderr(), "{e}");
                         }
                     },
                     Err(e) => {
+                        exit_code = 65;
                         writeln!(io::stderr(), "{e}");
                     }
                 }
             };
+
+            exit(exit_code);
         }
         _ => {
             writeln!(io::stderr(), "Unknown command: {}", command).unwrap();
