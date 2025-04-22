@@ -20,7 +20,7 @@ impl fmt::Display for Expr {
             Expr::Nil => write!(f, "nil"),
             Expr::Literal(l) => write!(f, "{}", l),
             Expr::Unary(token, expr) => write!(f, "({} {})", token.lexeme, expr),
-            Expr::Binary(token, e1, e2) => write!(f, "{}{}{}", e1, token.lexeme, e2),
+            Expr::Binary(token, e1, e2) => write!(f, "({} {} {})", token.lexeme, e1, e2),
             Expr::Grouping(e) => write!(f, "(group {})", e),
         }
     }
@@ -55,26 +55,21 @@ impl Parser<'_> {
     }
 
     /** Advances the iterator if the current element matches on of the TokenTypes
-     * in tokens. Otherwise, panic.
+     * in tokens. Otherwise, returns.
      */
-    fn match_and_advance(&mut self, tokens: &[TokenType]) {
+    fn match_and_advance(&mut self, tokens: &[TokenType]) -> Result<(), String> {
         match &self.current {
             Some(Ok(t)) => {
                 if !tokens.contains(&t.token) {
-                    panic!(
-                        "[line {}] Error: Expected one of the following: {:?}, received {}. ",
-                        t.line, tokens, t.lexeme
-                    );
+                    return Err(t.lexeme.to_string());
                 }
             }
             Some(Err(e)) => panic!("{}", e),
-            None => panic!(
-                "Error: Expected one of the following: {:?}, received EOF. ",
-                tokens
-            ),
+            None => return Err("EOF".to_string()),
         }
 
         self.advance();
+        Ok(())
     }
 
     pub fn expression(&mut self) -> Expr {
@@ -95,8 +90,26 @@ impl Parser<'_> {
         return left;
     }
     fn factor(&mut self) -> Expr {
-        let mut left = self.unary();
-        return left;
+        let mut expr = self.unary();
+
+        loop {
+            let t = match &self.current {
+                Some(Ok(t)) => t.clone(),
+                Some(Err(e)) => panic!("{}", e),
+                None => return expr,
+            };
+
+            match t.token {
+                TokenType::Star | TokenType::Slash => {
+                    self.advance();
+                    let right = self.unary();
+                    expr = Expr::Binary(t, Box::new(expr), Box::new(right))
+                }
+                _ => break,
+            }
+        }
+
+        return expr;
     }
     fn unary(&mut self) -> Expr {
         let t = match &self.current {
@@ -116,7 +129,7 @@ impl Parser<'_> {
     }
     fn primary(&mut self) -> Expr {
         let t = match &self.current {
-            Some(Ok(t)) => t.to_owned(),
+            Some(Ok(t)) => t.clone(),
             Some(Err(e)) => panic!("{}", e),
             None => panic!("END"),
         };
@@ -131,7 +144,10 @@ impl Parser<'_> {
             TokenType::Number => Expr::Literal(t.literal.to_owned()),
             TokenType::LeftParen => {
                 let expr = self.expression();
-                self.match_and_advance(&vec![TokenType::RightParen]);
+                match self.match_and_advance(&vec![TokenType::RightParen]) {
+                    Ok(()) => (),
+                    Err(e) => panic!("Expected and '(' after the expression, received {}", e),
+                };
                 Expr::Grouping(Box::new(expr))
             }
             _ => panic!(
