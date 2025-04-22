@@ -49,7 +49,7 @@ fn main() {
                     }
                 };
             }
-            printtln!("EOF  null");
+            println!("EOF  null");
 
             if has_error {
                 exit(65);
