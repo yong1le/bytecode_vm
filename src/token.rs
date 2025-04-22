@@ -48,7 +48,6 @@ pub enum Literal {
     Number(f64),
     Boolean(bool),
     Nil,
-    None,
 }
 
 #[derive(Debug, Clone)]
@@ -124,7 +123,6 @@ impl fmt::Display for Literal {
                 }
                 Literal::Boolean(a) => a.to_string(),
                 Literal::Nil => "nil".to_string(),
-                Literal::None => "null".to_string(),
             }
         )
     }
@@ -133,7 +131,7 @@ impl fmt::Display for Literal {
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.token {
-            TokenType::Nil => write!(f, "NIL nil null"),
+            TokenType::Nil => write!(f, "{} {} null", self.token, self.lexeme),
             _ => write!(f, "{} {} {}", self.token, self.lexeme, self.literal),
         }
     }
