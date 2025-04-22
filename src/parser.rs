@@ -72,39 +72,41 @@ impl Parser<'_> {
         Ok(())
     }
 
-    pub fn expression(&mut self) -> Expr {
+    pub fn expression(&mut self) -> Result<Expr, ParseError> {
         self.equality()
     }
-    fn equality(&mut self) -> Expr {
-        let mut expr = self.comparison();
+
+    fn equality(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.comparison()?;
 
         loop {
             let t = match &self.current {
-                Some(Ok(t)) => t.clone(),
-                Some(Err(e)) => panic!("{}", e),
-                None => return expr,
+                Some(Ok(t)) => t.to_owned(),
+                Some(Err(e)) => return Err(ParseError::ScanError(e.to_owned())),
+                None => return Ok(expr),
             };
 
             match t.token {
                 TokenType::EqualEqual | TokenType::BangEqual => {
                     self.advance();
-                    let right = self.comparison();
+                    let right = self.comparison()?;
                     expr = Expr::Binary(t, Box::new(expr), Box::new(right))
                 }
                 _ => break,
             }
         }
 
-        return expr;
+        return Ok(expr);
     }
-    fn comparison(&mut self) -> Expr {
-        let mut expr = self.term();
+
+    fn comparison(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.term()?;
 
         loop {
             let t = match &self.current {
-                Some(Ok(t)) => t.clone(),
-                Some(Err(e)) => panic!("{}", e),
-                None => return expr,
+                Some(Ok(t)) => t.to_owned(),
+                Some(Err(e)) => return Err(ParseError::ScanError(e.to_owned())),
+                None => return Ok(expr),
             };
 
             match t.token {
@@ -113,102 +115,137 @@ impl Parser<'_> {
                 | TokenType::GreaterEqual
                 | TokenType::GreaterThan => {
                     self.advance();
-                    let right = self.term();
+                    let right = self.term()?;
                     expr = Expr::Binary(t, Box::new(expr), Box::new(right))
                 }
                 _ => break,
             }
         }
 
-        return expr;
+        return Ok(expr);
     }
-    fn term(&mut self) -> Expr {
-        let mut expr = self.factor();
+
+    fn term(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.factor()?;
 
         loop {
             let t = match &self.current {
-                Some(Ok(t)) => t.clone(),
-                Some(Err(e)) => panic!("{}", e),
-                None => return expr,
+                Some(Ok(t)) => t.to_owned(),
+                Some(Err(e)) => return Err(ParseError::ScanError(e.to_owned())),
+                None => return Ok(expr),
             };
 
             match t.token {
                 TokenType::Plus | TokenType::Minus => {
                     self.advance();
-                    let right = self.factor();
+                    let right = self.factor()?;
                     expr = Expr::Binary(t, Box::new(expr), Box::new(right))
                 }
                 _ => break,
             }
         }
 
-        return expr;
+        return Ok(expr);
     }
-    fn factor(&mut self) -> Expr {
-        let mut expr = self.unary();
+
+    fn factor(&mut self) -> Result<Expr, ParseError> {
+        let mut expr = self.unary()?;
 
         loop {
             let t = match &self.current {
-                Some(Ok(t)) => t.clone(),
-                Some(Err(e)) => panic!("{}", e),
-                None => return expr,
+                Some(Ok(t)) => t.to_owned(),
+                Some(Err(e)) => return Err(ParseError::ScanError(e.to_owned())),
+                None => return Ok(expr),
             };
 
             match t.token {
                 TokenType::Star | TokenType::Slash => {
                     self.advance();
-                    let right = self.unary();
+                    let right = self.unary()?;
                     expr = Expr::Binary(t, Box::new(expr), Box::new(right))
                 }
                 _ => break,
             }
         }
 
-        return expr;
+        return Ok(expr);
     }
-    fn unary(&mut self) -> Expr {
+
+    fn unary(&mut self) -> Result<Expr, ParseError> {
         let t = match &self.current {
             Some(Ok(t)) => t.to_owned(),
-            Some(Err(e)) => panic!("{}", e),
-            None => panic!("END"),
+            Some(Err(e)) => return Err(ParseError::ScanError(e.to_owned())),
+            None => return Err(ParseError::UnexpectedEOF),
         };
 
         match t.token {
             TokenType::Bang | TokenType::Minus => {
                 self.advance();
-                let expr = self.unary();
-                Expr::Unary(t, Box::new(expr))
+                let expr = self.unary()?;
+                Ok(Expr::Unary(t, Box::new(expr)))
             }
             _ => self.primary(),
         }
     }
-    fn primary(&mut self) -> Expr {
+
+    fn primary(&mut self) -> Result<Expr, ParseError> {
         let t = match &self.current {
-            Some(Ok(t)) => t.clone(),
-            Some(Err(e)) => panic!("{}", e),
-            None => panic!("END"),
+            Some(Ok(t)) => t.to_owned(),
+            Some(Err(e)) => return Err(ParseError::ScanError(e.to_owned())),
+            None => return Err(ParseError::UnexpectedEOF),
         };
 
         self.advance();
 
-        match t.token {
+        let expr = match t.token {
             TokenType::True => Expr::Literal(Literal::Boolean(true)),
             TokenType::False => Expr::Literal(Literal::Boolean(false)),
             TokenType::Nil => Expr::Nil,
             TokenType::String => Expr::Literal(t.literal.to_owned()),
             TokenType::Number => Expr::Literal(t.literal.to_owned()),
             TokenType::LeftParen => {
-                let expr = self.expression();
+                let expr = self.expression()?;
                 match self.match_and_advance(&vec![TokenType::RightParen]) {
                     Ok(()) => (),
-                    Err(e) => panic!("Expected and '(' after the expression, received {}", e),
+                    Err(e) => return Err(ParseError::ExpectedParen(t.line, e)),
                 };
                 Expr::Grouping(Box::new(expr))
             }
-            _ => panic!(
-                "[line {}] Did not expect {} {} here.",
-                t.line, t.token, t.lexeme
-            ),
+            _ => return Err(ParseError::ExpectedExpression(t.line, t.lexeme)),
+        };
+
+        Ok(expr)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum ParseError {
+    ScanError(ScanError),
+    ExpectedParen(u32, String),
+    ExpectedExpression(u32, String),
+    UnexpectedEOF,
+}
+
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ScanError(s) => {
+                write!(f, "{s}")
+            }
+            Self::ExpectedParen(line, actual) => {
+                write!(
+                    f,
+                    "[line {}] Error at {}: Expect ')'.",
+                    line, actual
+                )
+            }
+            Self::ExpectedExpression(line, actual) => {
+                write!(f, "[line {}] Error at '{}': Expect expression.", line, actual)
+            }
+
+            Self::UnexpectedEOF => {
+                write!(f, "Error: Unexpected End of File.")
+            }
         }
     }
 }

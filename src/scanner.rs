@@ -230,6 +230,7 @@ impl Iterator for Scanner<'_> {
     }
 }
 
+#[derive(Debug, Clone)]
 pub enum ScanError {
     UnterminatedString(u32),
     UnexpectedCharacter(u32, char),

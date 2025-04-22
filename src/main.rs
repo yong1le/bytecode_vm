@@ -6,11 +6,11 @@ use std::env;
 use std::fs;
 use std::io::{self, Write};
 use std::process::exit;
+use std::string::ParseError;
 
-use parser::Expr;
 use parser::Parser;
+use scanner::ScanError;
 use scanner::Scanner;
-use token::Literal;
 
 fn read_file(filename: &String) -> String {
     fs::read_to_string(filename).unwrap_or_else(|_| {
@@ -34,32 +34,40 @@ fn main() {
 
     let file_contents = read_file(filename);
 
+    let mut exit_code = 0;
     match command.as_str() {
         "tokenize" => {
             let scanner = Scanner::new(&file_contents);
-            let mut has_error = false;
             for token in scanner {
                 match token {
                     Ok(t) => {
                         println!("{t}");
                     }
                     Err(e) => {
-                        has_error = true;
+                        exit_code = 65;
                         writeln!(io::stderr(), "{e}");
                     }
                 };
             }
             println!("EOF  null");
 
-            if has_error {
-                exit(65);
-            }
+            exit(exit_code);
         }
         "parse" => {
             let scanner = Scanner::new(&file_contents);
             let mut parser = Parser::new(scanner);
 
-            println!("{}", parser.expression())
+            match parser.expression() {
+                Ok(expr) => {
+                    println!("{expr}");
+                }
+                Err(e) => {
+                    exit_code = 65;
+                    writeln!(io::stderr(), "{e}");
+                }
+            }
+
+            exit(exit_code);
         }
         _ => {
             writeln!(io::stderr(), "Unknown command: {}", command).unwrap();
