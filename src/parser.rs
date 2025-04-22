@@ -19,7 +19,7 @@ impl fmt::Display for Expr {
         match self {
             Expr::Nil => write!(f, "nil"),
             Expr::Literal(l) => write!(f, "{}", l),
-            Expr::Unary(token, expr) => write!(f, "{}{}", expr, token.lexeme),
+            Expr::Unary(token, expr) => write!(f, "({} {})", token.lexeme, expr),
             Expr::Binary(token, e1, e2) => write!(f, "{}{}{}", e1, token.lexeme, e2),
             Expr::Grouping(e) => write!(f, "(group {})", e),
         }
@@ -54,13 +54,27 @@ impl Parser<'_> {
         self.current = self.tokens.next();
     }
 
-    /** Advances to the next element in the iterator   */
-    fn match_and_advance(&mut self, tokens: &[TokenType]) -> Option<Result<Token, ScanError>> {
-        self.tokens.next_if(|_| match &self.current {
-            Some(Ok(t)) => tokens.contains(&t.token),
-            Some(Err(_)) => false,
-            None => false,
-        })
+    /** Advances the iterator if the current element matches on of the TokenTypes
+     * in tokens. Otherwise, panic.
+     */
+    fn match_and_advance(&mut self, tokens: &[TokenType]) {
+        match &self.current {
+            Some(Ok(t)) => {
+                if !tokens.contains(&t.token) {
+                    panic!(
+                        "[line {}] Error: Expected one of the following: {:?}, received {}. ",
+                        t.line, tokens, t.lexeme
+                    );
+                }
+            }
+            Some(Err(e)) => panic!("{}", e),
+            None => panic!(
+                "Error: Expected one of the following: {:?}, received EOF. ",
+                tokens
+            ),
+        }
+
+        self.advance();
     }
 
     pub fn expression(&mut self) -> Expr {
@@ -85,7 +99,20 @@ impl Parser<'_> {
         return left;
     }
     fn unary(&mut self) -> Expr {
-        return self.primary();
+        let t = match &self.current {
+            Some(Ok(t)) => t.to_owned(),
+            Some(Err(e)) => panic!("{}", e),
+            None => panic!("END"),
+        };
+
+        match t.token {
+            TokenType::Bang | TokenType::Minus => {
+                self.advance();
+                let expr = self.unary();
+                Expr::Unary(t, Box::new(expr))
+            }
+            _ => self.primary(),
+        }
     }
     fn primary(&mut self) -> Expr {
         let t = match &self.current {
@@ -104,19 +131,13 @@ impl Parser<'_> {
             TokenType::Number => Expr::Literal(t.literal.to_owned()),
             TokenType::LeftParen => {
                 let expr = self.expression();
-                match &self.current {
-                    Some(Ok(token)) => {
-                        match &token.token {
-                            TokenType::RightParen => (),
-                            _ => panic!("Expected a '('"),
-                        };
-                    }
-                    Some(Err(_)) | None => panic!("Expected a '('"),
-                }
-
+                self.match_and_advance(&vec![TokenType::RightParen]);
                 Expr::Grouping(Box::new(expr))
             }
-            _ => panic!("should not be here"),
+            _ => panic!(
+                "[line {}] Did not expect {} {} here.",
+                t.line, t.token, t.lexeme
+            ),
         }
     }
 }

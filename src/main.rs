@@ -59,14 +59,7 @@ fn main() {
             let scanner = Scanner::new(&file_contents);
             let mut parser = Parser::new(scanner);
 
-            println!("{}", match parser.expression() {
-                Expr::Literal(literal) => match literal {
-                    Literal::Nil => "nil".to_string(),
-                    l => l.to_string()
-                }
-                c => c.to_string()
-            });
-
+            println!("{}", parser.expression())
         }
         _ => {
             writeln!(io::stderr(), "Unknown command: {}", command).unwrap();
