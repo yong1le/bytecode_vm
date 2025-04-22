@@ -1,11 +1,21 @@
+mod parser;
 mod scanner;
+mod token;
 
 use std::env;
 use std::fs;
 use std::io::{self, Write};
 use std::process::exit;
 
+use parser::Parser;
 use scanner::Scanner;
+
+fn read_file(filename: &String) -> String {
+    fs::read_to_string(filename).unwrap_or_else(|_| {
+        writeln!(io::stderr(), "Failed to read file {}", filename).unwrap();
+        String::new()
+    })
+}
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -20,22 +30,34 @@ fn main() {
     // You can use print statements as follows for debugging, they'll be visible when running tests.
     writeln!(io::stderr(), "Logs from your program will appear here!").unwrap();
 
+    let file_contents = read_file(filename);
+
     match command.as_str() {
         "tokenize" => {
-            let file_contents = fs::read_to_string(filename).unwrap_or_else(|_| {
-                writeln!(io::stderr(), "Failed to read file {}", filename).unwrap();
-                String::new()
-            });
+            let scanner = Scanner::new(&file_contents);
+            let mut has_error = false;
+            for token in scanner {
+                match token {
+                    Ok(t) => {
+                        println!("{t}");
+                    }
+                    Err(e) => {
+                        has_error = true;
+                        writeln!(io::stderr(), "{e}");
+                    }
+                };
+            }
 
-            let mut scanner = Scanner::new(&file_contents);
-            let result = scanner.tokenize();
-            scanner.print();
-
-            result.unwrap_or_else(|_| {
+            if has_error {
                 exit(65);
-            });
+            }
         }
+        "parse" => {
+            let scanner = Scanner::new(&file_contents);
+            let parser = Parser::new(scanner);
 
+            println!("{}", parser.expression());
+        }
         _ => {
             writeln!(io::stderr(), "Unknown command: {}", command).unwrap();
             return;
