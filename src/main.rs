@@ -49,6 +49,7 @@ fn main() {
                     }
                 };
             }
+            printtln!("EOF  null");
 
             if has_error {
                 exit(65);
@@ -65,6 +66,7 @@ fn main() {
                 }
                 c => c.to_string()
             });
+
         }
         _ => {
             writeln!(io::stderr(), "Unknown command: {}", command).unwrap();
