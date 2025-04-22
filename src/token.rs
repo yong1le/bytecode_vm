@@ -119,7 +119,7 @@ impl fmt::Display for Literal {
                 }
             },
             Literal::Boolean(a) => a.to_string(),
-            Literal::Nil => "null".to_string()
+            Literal::Nil => "nil".to_string()
         })
     }
 }
