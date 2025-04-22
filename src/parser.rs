@@ -225,7 +225,11 @@ impl<'a> Iterator for Parser<'a> {
         }
         
         let result = self.expression();
-        
+        match result {
+            Err(ParseError::ScanError(_)) => self.advance(),
+            _ => ()
+        }
+
         Some(result)
     }
 }
