@@ -57,7 +57,7 @@ fn main() {
         }
         "parse" => {
             let scanner = Scanner::new(&file_contents);
-            let parser = Parser::new(scanner);
+            let mut parser = Parser::new(scanner);
 
             println!("{}", match parser.expression() {
                 Expr::Literal(literal) => match literal {

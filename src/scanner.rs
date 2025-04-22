@@ -161,7 +161,7 @@ impl Iterator for Scanner<'_> {
     fn next(&mut self) -> Option<Self::Item> {
         self.skip_whitespace();
 
-        let c = match self.current {
+        let &c = match &self.current {
             Some(c) => c,
             None => return None,
         };

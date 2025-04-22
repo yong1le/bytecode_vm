@@ -1,13 +1,13 @@
 use core::fmt;
-use std::{iter::Peekable};
+use std::iter::Peekable;
 
 use crate::{
     scanner::{ScanError, Scanner},
-    token::{Literal, Token, TokenType},
+    token::{self, Literal, Token, TokenType},
 };
 
 pub enum Expr {
-    Literal(Literal),                      // NUMBER, STRING, true, false, nil
+    Literal(Literal),                    // NUMBER, STRING, true, false, nil
     Unary(Token, Box<Expr>),             // !, -
     Binary(Token, Box<Expr>, Box<Expr>), // +, -, *, /
     Grouping(Box<Expr>),                 // (, )
@@ -19,7 +19,7 @@ impl fmt::Display for Expr {
             Expr::Literal(l) => write!(f, "{}", l),
             Expr::Unary(token, expr) => write!(f, "{}{}", expr, token.lexeme),
             Expr::Binary(token, e1, e2) => write!(f, "{}{}{}", e1, token.lexeme, e2),
-            Expr::Grouping(e) => write!(f, "({})", e),
+            Expr::Grouping(e) => write!(f, "(group {})", e),
         }
     }
 }
@@ -48,6 +48,10 @@ impl Parser<'_> {
         };
     }
 
+    fn advance(&mut self) {
+        self.current = self.tokens.next();
+    }
+
     /** Advances to the next element in the iterator   */
     fn match_and_advance(&mut self, tokens: &[TokenType]) -> Option<Result<Token, ScanError>> {
         self.tokens.next_if(|_| match &self.current {
@@ -57,42 +61,60 @@ impl Parser<'_> {
         })
     }
 
-    pub fn expression(&self) -> Expr {
+    pub fn expression(&mut self) -> Expr {
         self.equality()
     }
-    fn equality(&self) -> Expr {
+    fn equality(&mut self) -> Expr {
         let mut left = self.comparison();
 
         return left;
     }
-    fn comparison(&self) -> Expr {
+    fn comparison(&mut self) -> Expr {
         let mut left = self.term();
         return left;
     }
-    fn term(&self) -> Expr {
+    fn term(&mut self) -> Expr {
         let mut left = self.factor();
 
         return left;
     }
-    fn factor(&self) -> Expr {
+    fn factor(&mut self) -> Expr {
         let mut left = self.unary();
         return left;
     }
-    fn unary(&self) -> Expr {
+    fn unary(&mut self) -> Expr {
         return self.primary();
     }
-    fn primary(&self) -> Expr {
-        match &self.current {
-            Some(Ok(token)) => match &token.token {
-                TokenType::True => Expr::Literal(Literal::Boolean(true)),
-                TokenType::False => Expr::Literal(Literal::Boolean(false)),
-                TokenType::Nil => Expr::Literal(Literal::Nil),
-                TokenType::String => Expr::Literal(token.literal.to_owned()),
-                TokenType::Number => Expr::Literal(token.literal.to_owned()),
-                _ => panic!("Not implemented")
+    fn primary(&mut self) -> Expr {
+        let t = match &self.current {
+            Some(Ok(t)) => t.to_owned(),
+            Some(Err(e)) => panic!("{}", e),
+            None => panic!("END"),
+        };
+
+        self.advance();
+
+        match t.token {
+            TokenType::True => Expr::Literal(Literal::Boolean(true)),
+            TokenType::False => Expr::Literal(Literal::Boolean(false)),
+            TokenType::Nil => Expr::Literal(Literal::Nil),
+            TokenType::String => Expr::Literal(t.literal.to_owned()),
+            TokenType::Number => Expr::Literal(t.literal.to_owned()),
+            TokenType::LeftParen => {
+                let expr = self.expression();
+                match &self.current {
+                    Some(Ok(token)) => {
+                        match &token.token {
+                            TokenType::RightParen => (),
+                            _ => panic!("Expected a '('"),
+                        };
+                    }
+                    Some(Err(_)) | None => panic!("Expected a '('"),
+                }
+
+                Expr::Grouping(Box::new(expr))
             }
-            Some(Err(_)) => panic!("Not implemented"),
-            None => panic!("Not implemented")
+            _ => panic!("should not be here"),
         }
     }
 }
