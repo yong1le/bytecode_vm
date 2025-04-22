@@ -7,8 +7,10 @@ use std::fs;
 use std::io::{self, Write};
 use std::process::exit;
 
+use parser::Expr;
 use parser::Parser;
 use scanner::Scanner;
+use token::Literal;
 
 fn read_file(filename: &String) -> String {
     fs::read_to_string(filename).unwrap_or_else(|_| {
@@ -56,7 +58,13 @@ fn main() {
             let scanner = Scanner::new(&file_contents);
             let parser = Parser::new(scanner);
 
-            println!("{}", parser.expression());
+            println!("{}", match parser.expression() {
+                Expr::Literal(literal) => match literal {
+                    Literal::Nil => "null".to_string(),
+                    l => l.to_string()
+                }
+                c => c.to_string()
+            });
         }
         _ => {
             writeln!(io::stderr(), "Unknown command: {}", command).unwrap();
