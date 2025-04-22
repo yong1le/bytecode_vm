@@ -1,3 +1,4 @@
+mod interpreter;
 mod parser;
 mod scanner;
 mod token;
@@ -6,10 +7,10 @@ use std::env;
 use std::fs;
 use std::io::{self, Write};
 use std::process::exit;
-use std::string::ParseError;
 
+use interpreter::EvalError;
+use interpreter::Interpreter;
 use parser::Parser;
-use scanner::ScanError;
 use scanner::Scanner;
 
 fn read_file(filename: &String) -> String {
@@ -55,19 +56,41 @@ fn main() {
         }
         "parse" => {
             let scanner = Scanner::new(&file_contents);
-            let mut parser = Parser::new(scanner);
+            let parser = Parser::new(scanner);
 
-            match parser.expression() {
-                Ok(expr) => {
-                    println!("{expr}");
-                }
-                Err(e) => {
-                    exit_code = 65;
-                    writeln!(io::stderr(), "{e}");
+            for expr in parser {
+                match expr {
+                    Ok(expr) => {
+                        println!("{expr}");
+                    }
+                    Err(e) => {
+                        exit_code = 65;
+                        writeln!(io::stderr(), "{e}");
+                    }
                 }
             }
 
             exit(exit_code);
+        }
+        "evaluate" => {
+            let scanner = Scanner::new(&file_contents);
+            let mut parser = Parser::new(scanner);
+
+            if let Some(expr) = parser.next() {
+                match expr {
+                    Ok(expr) => match Interpreter::evaluate(expr) {
+                        Ok(val) => {
+                            println!("{val}");
+                        }
+                        Err(EvalError::ValueError(e)) => {
+                            writeln!(io::stderr(), "{e}");
+                        }
+                    },
+                    Err(e) => {
+                        writeln!(io::stderr(), "{e}");
+                    }
+                }
+            };
         }
         _ => {
             writeln!(io::stderr(), "Unknown command: {}", command).unwrap();

@@ -3,12 +3,11 @@ use std::iter::Peekable;
 
 use crate::{
     scanner::{ScanError, Scanner},
-    token::{self, Literal, Token, TokenType},
+    token::{Literal, Token, TokenType},
 };
 
 pub enum Expr {
-    Nil,                                 // nil
-    Literal(Literal),                    // NUMBER, STRING, true, false,
+    Literal(Literal),                    // NUMBER, STRING, true, false, nil
     Unary(Token, Box<Expr>),             // !, -
     Binary(Token, Box<Expr>, Box<Expr>), // +, -, *, /
     Grouping(Box<Expr>),                 // (, )
@@ -17,7 +16,6 @@ pub enum Expr {
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Expr::Nil => write!(f, "nil"),
             Expr::Literal(l) => write!(f, "{}", l),
             Expr::Unary(token, expr) => write!(f, "({} {})", token.lexeme, expr),
             Expr::Binary(token, e1, e2) => write!(f, "({} {} {})", token.lexeme, e1, e2),
@@ -41,13 +39,13 @@ pub struct Parser<'a> {
     tokens: Peekable<Scanner<'a>>,
 }
 
-impl Parser<'_> {
-    pub fn new(tokens: Scanner<'_>) -> Parser {
+impl<'a> Parser<'a> {
+    pub fn new(tokens: Scanner<'a>) -> Self {
         let mut tokens = tokens.into_iter().peekable();
-        return Parser {
+        Self {
             current: tokens.next(),
             tokens,
-        };
+        }
     }
 
     fn advance(&mut self) {
@@ -72,7 +70,7 @@ impl Parser<'_> {
         Ok(())
     }
 
-    pub fn expression(&mut self) -> Result<Expr, ParseError> {
+    fn expression(&mut self) -> Result<Expr, ParseError> {
         self.equality()
     }
 
@@ -200,7 +198,7 @@ impl Parser<'_> {
         let expr = match t.token {
             TokenType::True => Expr::Literal(Literal::Boolean(true)),
             TokenType::False => Expr::Literal(Literal::Boolean(false)),
-            TokenType::Nil => Expr::Nil,
+            TokenType::Nil => Expr::Literal(Literal::Nil),
             TokenType::String => Expr::Literal(t.literal.to_owned()),
             TokenType::Number => Expr::Literal(t.literal.to_owned()),
             TokenType::LeftParen => {
@@ -218,6 +216,19 @@ impl Parser<'_> {
     }
 }
 
+impl<'a> Iterator for Parser<'a> {
+    type Item = Result<Expr, ParseError>;
+    
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current.is_none() {
+            return None;
+        }
+        
+        let result = self.expression();
+        
+        Some(result)
+    }
+}
 #[derive(Debug, Clone)]
 pub enum ParseError {
     ScanError(ScanError),
@@ -233,14 +244,14 @@ impl fmt::Display for ParseError {
                 write!(f, "{s}")
             }
             Self::ExpectedParen(line, actual) => {
-                write!(
-                    f,
-                    "[line {}] Error at {}: Expect ')'.",
-                    line, actual
-                )
+                write!(f, "[line {}] Error at {}: Expect ')'.", line, actual)
             }
             Self::ExpectedExpression(line, actual) => {
-                write!(f, "[line {}] Error at '{}': Expect expression.", line, actual)
+                write!(
+                    f,
+                    "[line {}] Error at '{}': Expect expression.",
+                    line, actual
+                )
             }
 
             Self::UnexpectedEOF => {
