@@ -106,17 +106,7 @@ fn main() {
             let parser = Parser::new(scanner);
             let mut interpreter = Interpreter::new();
 
-            for stmt in parser {
-                match stmt {
-                    Ok(stmt) => interpreter.interpret(&stmt),
-                    Err(e) => {
-                        exit_code = 65;
-                        writeln!(io::stderr(), "{}", e);
-                    }
-                }
-            }
-
-            exit(exit_code);
+            parser.for_each(|stmt|  interpreter.interpret(&stmt));
         }
         _ => {
             writeln!(io::stderr(), "Unknown command: {}", command).unwrap();

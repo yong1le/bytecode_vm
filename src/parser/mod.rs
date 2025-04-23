@@ -2,7 +2,9 @@ pub mod expr;
 pub mod stmt;
 
 use core::fmt;
-use std::{iter::Peekable, vec};
+use std::{iter::Peekable, process::exit, vec};
+
+use std::io::{self, Write};
 
 use expr::Expr;
 use stmt::Stmt;
@@ -123,7 +125,11 @@ impl<'a> Parser<'a> {
                 self.match_and_advance(&vec![TokenType::Semicolon])?;
                 Ok(Stmt::Variable(t.lexeme, initializer))
             }
-            _ => Err(ParseError::ExpectedChar(t.line, t.lexeme.to_string(), "IDENTIFIER".to_string()))
+            _ => Err(ParseError::ExpectedChar(
+                t.line,
+                t.lexeme.to_string(),
+                "IDENTIFIER".to_string(),
+            )),
         }
     }
 
@@ -150,7 +156,7 @@ impl<'a> Parser<'a> {
         Ok(Stmt::Print(expr))
     }
 
-    /* Basically expression, but consume the semicolon */
+    /// Basically expression, but consume the semicolon
     fn expression_stmt(&mut self) -> Result<Stmt, ParseError> {
         let expr = self.expression()?;
         self.match_and_advance(&vec![TokenType::Semicolon])?;
@@ -302,7 +308,7 @@ impl<'a> Parser<'a> {
 }
 
 impl<'a> Iterator for Parser<'a> {
-    type Item = Result<Stmt, ParseError>;
+    type Item = Stmt;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.current.is_none() {
@@ -310,12 +316,14 @@ impl<'a> Iterator for Parser<'a> {
         }
 
         let result = self.declaration();
-        match result {
-            Err(ParseError::ScanError(_)) => self.advance(),
-            _ => (),
-        }
 
-        Some(result)
+        match result {
+            Ok(stmt) => Some(stmt),
+            Err(e) => {
+                writeln!(io::stderr(), "{}", e);
+                exit(65);
+            }
+        }
     }
 }
 #[derive(Debug, Clone)]

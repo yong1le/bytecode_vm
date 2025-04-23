@@ -1,6 +1,6 @@
 use core::fmt;
 
-use super::expr::{self, Expr};
+use super::expr::Expr;
 
 pub enum Stmt {
     Print(Expr),

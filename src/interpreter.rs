@@ -33,6 +33,11 @@ impl Interpreter {
     pub fn interpret(&mut self, stmt: &Stmt) {
         stmt.accept(self)
     }
+
+    fn runtime_panic(&self, error: EvalError) {
+        writeln!(io::stderr(), "{error}");
+        exit(70);
+    }
 }
 
 impl ExprVisitor<Result<Literal, EvalError>> for Interpreter {
@@ -108,7 +113,7 @@ impl ExprVisitor<Result<Literal, EvalError>> for Interpreter {
     fn visit_variable(&mut self, id: &String) -> Result<Literal, EvalError> {
         match self.env.get(id) {
             Some(var) => Ok(var.to_owned()),
-            None => Err(EvalError::NameError(id.to_string()))
+            None => Err(EvalError::NameError(id.to_string())),
         }
     }
 }
@@ -120,32 +125,36 @@ impl StmtVisitor for Interpreter {
                 println!("{}", literal.stringify());
             }
             Err(e) => {
-                writeln!(io::stderr(), "{}", e);
-                exit(70);
+                self.runtime_panic(e);
             }
         };
     }
 
     fn visit_expr(&mut self, expr: &Expr) {
         match self.evaluate(expr) {
-            Ok(literal) => (),
+            Ok(_) => (),
             Err(e) => {
-                writeln!(io::stderr(), "{}", e);
-                exit(70);
+                self.runtime_panic(e);
             }
         };
     }
 
     fn visit_variable(&mut self, id: &String, expr: &Expr) {
-        // TODO: Parsing should not have failed
-        let literal = self.evaluate(expr).unwrap_or(Literal::Nil).to_owned();
-        self.env.insert(id.to_owned(), literal);
+        let literal = self.evaluate(expr);
+        match literal {
+            Ok(l) => {
+                self.env.insert(id.to_owned(), l);
+            }
+            Err(e) => {
+                self.runtime_panic(e);
+            }
+        }
     }
 }
 
 pub enum EvalError {
     ValueError(&'static str),
-    NameError(String)
+    NameError(String),
 }
 
 impl fmt::Display for EvalError {
