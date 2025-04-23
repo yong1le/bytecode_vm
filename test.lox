@@ -1,1 +1,4 @@
-"hel" < 3
+3 +
+3;
+
+print "hello world";

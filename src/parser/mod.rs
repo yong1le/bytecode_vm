@@ -1,28 +1,21 @@
+pub mod expr;
+pub mod stmt;
+
 use core::fmt;
 use std::iter::Peekable;
+
+use expr::Expr;
+use stmt::Stmt;
 
 use crate::{
     scanner::{ScanError, Scanner},
     token::{Literal, Token, TokenType},
 };
 
-pub enum Expr {
-    Literal(Literal),                    // NUMBER, STRING, true, false, nil
-    Unary(Token, Box<Expr>),             // !, -
-    Binary(Token, Box<Expr>, Box<Expr>), // +, -, *, /, <, <=, >, >=
-    Grouping(Box<Expr>),                 // (, )
-}
-
-impl fmt::Display for Expr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Expr::Literal(l) => write!(f, "{}", l),
-            Expr::Unary(token, expr) => write!(f, "({} {})", token.lexeme, expr),
-            Expr::Binary(token, e1, e2) => write!(f, "({} {} {})", token.lexeme, e1, e2),
-            Expr::Grouping(e) => write!(f, "(group {})", e),
-        }
-    }
-}
+// program        →  statement* EOF;
+// statement      → exprStmt | printStmt ;
+// exprStmt       → expression ";" '
+// printStmt      → "print" expression ";" ;
 
 // expression     → equality ;
 // equality       → comparison ( ( "!=" | "==" ) comparison )* ;
@@ -68,6 +61,43 @@ impl<'a> Parser<'a> {
 
         self.advance();
         Ok(())
+    }
+
+    fn statement(&mut self) -> Result<Stmt, ParseError> {
+        let t = match &self.current {
+            Some(Ok(t)) => t.to_owned(),
+            Some(Err(e)) => return Err(ParseError::ScanError(e.to_owned())),
+            None => return Err(ParseError::UnexpectedEOF),
+        };
+
+        match t.token {
+            TokenType::Print => {
+                self.advance();
+                self.print(t.line)
+            }
+            _ => self.expression_stmt(t.line),
+        }
+    }
+
+    fn print(&mut self, line: u32) -> Result<Stmt, ParseError> {
+        let expr = self.expression()?;
+        match self.match_and_advance(&vec![TokenType::Semicolon]) {
+            Ok(()) => (),
+            Err(e) => return Err(ParseError::ExpectedChar(line, e, ";".to_string())),
+        };
+
+        Ok(Stmt::Print(expr))
+    }
+
+    /* Basically expression, but consume the semicolon */
+    fn expression_stmt(&mut self, line: u32) -> Result<Stmt, ParseError> {
+        let expr = self.expression()?;
+        match self.match_and_advance(&vec![TokenType::Semicolon]) {
+            Ok(()) => (),
+            Err(e) => return Err(ParseError::ExpectedChar(line, e, ";".to_string())),
+        };
+
+        Ok(Stmt::Expr(expr))
     }
 
     fn expression(&mut self) -> Result<Expr, ParseError> {
@@ -205,7 +235,7 @@ impl<'a> Parser<'a> {
                 let expr = self.expression()?;
                 match self.match_and_advance(&vec![TokenType::RightParen]) {
                     Ok(()) => (),
-                    Err(e) => return Err(ParseError::ExpectedParen(t.line, e)),
+                    Err(e) => return Err(ParseError::ExpectedChar(t.line, e, "(".to_string())),
                 };
                 Expr::Grouping(Box::new(expr))
             }
@@ -217,17 +247,17 @@ impl<'a> Parser<'a> {
 }
 
 impl<'a> Iterator for Parser<'a> {
-    type Item = Result<Expr, ParseError>;
-    
+    type Item = Result<Stmt, ParseError>;
+
     fn next(&mut self) -> Option<Self::Item> {
         if self.current.is_none() {
             return None;
         }
-        
-        let result = self.expression();
+
+        let result = self.statement();
         match result {
             Err(ParseError::ScanError(_)) => self.advance(),
-            _ => ()
+            _ => (),
         }
 
         Some(result)
@@ -236,7 +266,7 @@ impl<'a> Iterator for Parser<'a> {
 #[derive(Debug, Clone)]
 pub enum ParseError {
     ScanError(ScanError),
-    ExpectedParen(u32, String),
+    ExpectedChar(u32, String, String),
     ExpectedExpression(u32, String),
     UnexpectedEOF,
 }
@@ -247,8 +277,12 @@ impl fmt::Display for ParseError {
             Self::ScanError(s) => {
                 write!(f, "{s}")
             }
-            Self::ExpectedParen(line, actual) => {
-                write!(f, "[line {}] Error at {}: Expect ')'.", line, actual)
+            Self::ExpectedChar(line, actual, expected) => {
+                write!(
+                    f,
+                    "[line {}] Error at {}: Expect '{}'.",
+                    line, actual, expected
+                )
             }
             Self::ExpectedExpression(line, actual) => {
                 write!(

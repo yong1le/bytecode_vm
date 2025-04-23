@@ -47,7 +47,9 @@ impl<'a> Scanner<'a> {
 
         Ok((
             TokenType::String,
-            Literal::String(lexeme[1..lexeme.len() - 1].to_string()),
+            Literal::String(std::borrow::Cow::Owned(
+                lexeme[1..lexeme.len() - 1].to_string(),
+            )),
             lexeme,
         ))
     }

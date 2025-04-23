@@ -1,4 +1,4 @@
-use std::fmt::{self};
+use std::{borrow::Cow, fmt::{self}};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
@@ -44,7 +44,7 @@ pub enum TokenType {
 }
 #[derive(Debug, Clone)]
 pub enum Literal {
-    String(String),
+    String(Cow<'static, str>),
     Number(f64),
     Boolean(bool),
     Nil,

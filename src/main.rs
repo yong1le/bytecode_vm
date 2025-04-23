@@ -10,6 +10,7 @@ use std::process::exit;
 
 use interpreter::EvalError;
 use interpreter::Interpreter;
+use parser::stmt::Stmt;
 use parser::Parser;
 use scanner::Scanner;
 use token::Literal;
@@ -75,30 +76,48 @@ fn main() {
         }
         "evaluate" => {
             let scanner = Scanner::new(&file_contents);
-            let mut parser = Parser::new(scanner);
+            let parser = Parser::new(scanner);
+            let mut interpreter = Interpreter::new();
 
-            if let Some(expr) = parser.next() {
-                match expr {
-                    Ok(expr) => match Interpreter::evaluate(expr) {
-                        Ok(val) => match val {
-                            Literal::Number(n) => {
-                                println!("{n}")
+            for stmt in parser {
+                match stmt {
+                    Ok(Stmt::Print(expr)) | Ok(Stmt::Expr(expr)) => {
+                        match interpreter.evaluate(&expr) {
+                            Ok(val) => match val {
+                                Literal::Number(n) => {
+                                    println!("{n}")
+                                }
+                                _ => println!("{val}"),
+                            },
+                            Err(e) => {
+                                exit_code = 70;
+                                writeln!(io::stderr(), "{e}");
                             }
-                            _ => println!("{val}"),
-                        },
-                        Err(EvalError::ValueError(e)) => {
-                            exit_code = 70;
-                            writeln!(io::stderr(), "{e}");
                         }
-                    },
+                    }
                     Err(e) => {
                         exit_code = 65;
                         writeln!(io::stderr(), "{e}");
                     }
                 }
-            };
+            }
 
             exit(exit_code);
+        }
+        "run" => {
+            let scanner = Scanner::new(&file_contents);
+            let parser = Parser::new(scanner);
+            let mut interpreter = Interpreter::new();
+
+            for stmt in parser {
+                match stmt {
+                    Ok(stmt) => interpreter.interpret(&stmt),
+                    Err(e) => {
+                        exit_code = 65;
+                        writeln!(io::stderr(), "{}", e);
+                    }
+                }
+            }
         }
         _ => {
             writeln!(io::stderr(), "Unknown command: {}", command).unwrap();
