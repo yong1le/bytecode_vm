@@ -2,7 +2,7 @@ pub mod expr;
 pub mod stmt;
 
 use core::fmt;
-use std::iter::Peekable;
+use std::{iter::Peekable, vec};
 
 use expr::Expr;
 use stmt::Stmt;
@@ -12,7 +12,9 @@ use crate::{
     token::{Literal, Token, TokenType},
 };
 
-// program        →  statement* EOF;
+// program        →  declaration* EOF;
+// declaration    -> varDecl | statement;
+// varDecl        -> "var" IDENTIFIER ( "=" )? ";";
 // statement      → exprStmt | printStmt ;
 // exprStmt       → expression ";" '
 // printStmt      → "print" expression ";" ;
@@ -25,7 +27,7 @@ use crate::{
 // unary          → ( "!" | "-" ) unary
 //                | primary ;
 // primary        → NUMBER | STRING | "true" | "false" | "nil"
-//                | "(" expression ")" ;
+//                | "(" expression ")" | IDENTIFIER;
 
 pub struct Parser<'a> {
     current: Option<Result<Token, ScanError>>,
@@ -56,7 +58,7 @@ impl<'a> Parser<'a> {
 
         // If the first expression was instead an expression statement
         if let Some(Ok(token)) = &self.current {
-            if  token.token == TokenType::Semicolon {
+            if token.token == TokenType::Semicolon {
                 self.advance();
             }
         }
@@ -71,19 +73,58 @@ impl<'a> Parser<'a> {
     /** Advances the iterator if the current element matches on of the TokenTypes
      * in tokens. Otherwise, returns.
      */
-    fn match_and_advance(&mut self, tokens: &[TokenType]) -> Result<(), String> {
+    fn match_and_advance(&mut self, tokens: &[TokenType]) -> Result<(), ParseError> {
         match &self.current {
             Some(Ok(t)) => {
                 if !tokens.contains(&t.token) {
-                    return Err(t.lexeme.to_string());
+                    return Err(ParseError::ExpectedChar(
+                        t.line,
+                        t.lexeme.to_string(),
+                        format!("{:?}", tokens),
+                    ));
                 }
             }
             Some(Err(e)) => panic!("{}", e),
-            None => return Err("EOF".to_string()),
+            None => return Err(ParseError::UnexpectedEOF),
         }
 
         self.advance();
         Ok(())
+    }
+
+    fn declaration(&mut self) -> Result<Stmt, ParseError> {
+        let t = match &self.current {
+            Some(Ok(t)) => t.to_owned(),
+            Some(Err(e)) => return Err(ParseError::ScanError(e.to_owned())),
+            None => return Err(ParseError::UnexpectedEOF),
+        };
+
+        match t.token {
+            TokenType::Var => {
+                self.advance();
+                self.variable()
+            }
+            _ => self.statement(),
+        }
+    }
+
+    fn variable(&mut self) -> Result<Stmt, ParseError> {
+        let t = match &self.current {
+            Some(Ok(t)) => t.to_owned(),
+            Some(Err(e)) => return Err(ParseError::ScanError(e.to_owned())),
+            None => return Err(ParseError::UnexpectedEOF),
+        };
+
+        match t.token {
+            TokenType::Identifier => {
+                self.advance();
+                self.match_and_advance(&vec![TokenType::Equal])?;
+                let initializer = self.expression()?;
+                self.match_and_advance(&vec![TokenType::Semicolon])?;
+                Ok(Stmt::Variable(t.lexeme, initializer))
+            }
+            _ => Err(ParseError::ExpectedChar(t.line, t.lexeme.to_string(), "IDENTIFIER".to_string()))
+        }
     }
 
     fn statement(&mut self) -> Result<Stmt, ParseError> {
@@ -96,30 +137,23 @@ impl<'a> Parser<'a> {
         match t.token {
             TokenType::Print => {
                 self.advance();
-                self.print(t.line)
+                self.print()
             }
-            _ => self.expression_stmt(t.line),
+            _ => self.expression_stmt(),
         }
     }
 
-    fn print(&mut self, line: u32) -> Result<Stmt, ParseError> {
+    fn print(&mut self) -> Result<Stmt, ParseError> {
         let expr = self.expression()?;
-        match self.match_and_advance(&vec![TokenType::Semicolon]) {
-            Ok(()) => (),
-            Err(e) => return Err(ParseError::ExpectedChar(line, e, ";".to_string())),
-        };
+        self.match_and_advance(&vec![TokenType::Semicolon])?;
 
         Ok(Stmt::Print(expr))
     }
 
     /* Basically expression, but consume the semicolon */
-    fn expression_stmt(&mut self, line: u32) -> Result<Stmt, ParseError> {
+    fn expression_stmt(&mut self) -> Result<Stmt, ParseError> {
         let expr = self.expression()?;
-        match self.match_and_advance(&vec![TokenType::Semicolon]) {
-            Ok(()) => (),
-            Err(e) => return Err(ParseError::ExpectedChar(line, e, ";".to_string())),
-        };
-
+        self.match_and_advance(&vec![TokenType::Semicolon])?;
         Ok(Stmt::Expr(expr))
     }
 
@@ -249,6 +283,7 @@ impl<'a> Parser<'a> {
         self.advance();
 
         let expr = match t.token {
+            TokenType::Identifier => Expr::Variable(t.lexeme),
             TokenType::True => Expr::Literal(Literal::Boolean(true)),
             TokenType::False => Expr::Literal(Literal::Boolean(false)),
             TokenType::Nil => Expr::Literal(Literal::Nil),
@@ -256,10 +291,7 @@ impl<'a> Parser<'a> {
             TokenType::Number => Expr::Literal(t.literal.to_owned()),
             TokenType::LeftParen => {
                 let expr = self.expression()?;
-                match self.match_and_advance(&vec![TokenType::RightParen]) {
-                    Ok(()) => (),
-                    Err(e) => return Err(ParseError::ExpectedChar(t.line, e, "(".to_string())),
-                };
+                self.match_and_advance(&vec![TokenType::RightParen])?;
                 Expr::Grouping(Box::new(expr))
             }
             _ => return Err(ParseError::ExpectedExpression(t.line, t.lexeme)),
@@ -277,7 +309,7 @@ impl<'a> Iterator for Parser<'a> {
             return None;
         }
 
-        let result = self.statement();
+        let result = self.declaration();
         match result {
             Err(ParseError::ScanError(_)) => self.advance(),
             _ => (),
@@ -303,14 +335,14 @@ impl fmt::Display for ParseError {
             Self::ExpectedChar(line, actual, expected) => {
                 write!(
                     f,
-                    "[line {}] Error at {}: Expect '{}'.",
+                    "[line {}] Error at '{}': Expected {}.",
                     line, actual, expected
                 )
             }
             Self::ExpectedExpression(line, actual) => {
                 write!(
                     f,
-                    "[line {}] Error at '{}': Expect expression.",
+                    "[line {}] Error at '{}': Expected expression.",
                     line, actual
                 )
             }

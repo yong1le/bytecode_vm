@@ -1,5 +1,9 @@
 use core::fmt;
-use std::{io::{self, Write}, process::exit};
+use std::{
+    collections::HashMap,
+    io::{self, Write},
+    process::exit,
+};
 
 use crate::{
     parser::{
@@ -9,11 +13,15 @@ use crate::{
     token::{Literal, Token, TokenType},
 };
 
-pub struct Interpreter {}
+pub struct Interpreter {
+    env: HashMap<String, Literal>,
+}
 
 impl Interpreter {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            env: HashMap::new(),
+        }
     }
 
     /// Evaluates a single expression and returns its result
@@ -96,6 +104,13 @@ impl ExprVisitor<Result<Literal, EvalError>> for Interpreter {
     fn visit_grouping(&mut self, expr: &Expr) -> Result<Literal, EvalError> {
         self.evaluate(expr)
     }
+
+    fn visit_variable(&mut self, id: &String) -> Result<Literal, EvalError> {
+        match self.env.get(id) {
+            Some(var) => Ok(var.to_owned()),
+            None => Err(EvalError::NameError(id.to_string()))
+        }
+    }
 }
 
 impl StmtVisitor for Interpreter {
@@ -120,16 +135,24 @@ impl StmtVisitor for Interpreter {
             }
         };
     }
+
+    fn visit_variable(&mut self, id: &String, expr: &Expr) {
+        // TODO: Parsing should not have failed
+        let literal = self.evaluate(expr).unwrap_or(Literal::Nil).to_owned();
+        self.env.insert(id.to_owned(), literal);
+    }
 }
 
 pub enum EvalError {
     ValueError(&'static str),
+    NameError(String)
 }
 
 impl fmt::Display for EvalError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             EvalError::ValueError(s) => write!(f, "{}", s),
+            EvalError::NameError(s) => write!(f, "variable '{}' is not defined.", s),
         }
     }
 }

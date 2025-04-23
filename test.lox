@@ -1,8 +1,2 @@
-"baz
-
-
-dfgdsg
-
-getdg";
-print "non-ascii: ॐ";
-print false != false;
+var a = "foo";
+print a;

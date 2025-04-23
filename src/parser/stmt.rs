@@ -1,15 +1,17 @@
 use core::fmt;
 
-use super::expr::Expr;
+use super::expr::{self, Expr};
 
 pub enum Stmt {
     Print(Expr),
     Expr(Expr),
+    Variable(String, Expr),
 }
 
 pub trait StmtVisitor {
     fn visit_print(&mut self, stmt: &Expr);
     fn visit_expr(&mut self, expr: &Expr);
+    fn visit_variable(&mut self, id: &String, expr: &Expr);
 }
 
 impl Stmt {
@@ -17,6 +19,7 @@ impl Stmt {
         match self {
             Stmt::Print(expr) => visiter.visit_print(expr),
             Stmt::Expr(expr) => visiter.visit_expr(expr),
+            Stmt::Variable(id, expr) => visiter.visit_variable(id, expr),
         }
     }
 }
@@ -25,7 +28,8 @@ impl fmt::Display for Stmt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Stmt::Expr(e) => write!(f, "{}", e),
-            Stmt::Print(e) => write!(f, "(print {})", e)
+            Stmt::Print(e) => write!(f, "(print {})", e),
+            Stmt::Variable(id, expr) => write!(f, "({} ({}))", id, expr),
         }
     }
 }
