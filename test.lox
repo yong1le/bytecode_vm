@@ -1,1 +1,8 @@
-"baz" != "foo"
+"baz
+
+
+dfgdsg
+
+getdg";
+print "non-ascii: ॐ";
+print false != false;

@@ -34,8 +34,7 @@ impl<'a> Scanner<'a> {
                     self.advance();
                     break;
                 }
-
-                Some('\n') | None => {
+                None => {
                     return Err(ScanError::UnterminatedString(self.line));
                 }
                 Some(ch) => {
