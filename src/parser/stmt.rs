@@ -8,7 +8,7 @@ pub enum Stmt {
 }
 
 pub trait StmtVisitor {
-    fn visit_print(&mut self, expr: &Expr);
+    fn visit_print(&mut self, stmt: &Expr);
     fn visit_expr(&mut self, expr: &Expr);
 }
 

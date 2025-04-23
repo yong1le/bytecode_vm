@@ -102,7 +102,7 @@ impl StmtVisitor for Interpreter {
     fn visit_print(&mut self, expr: &Expr) {
         match self.evaluate(expr) {
             Ok(literal) => {
-                println!("{}", literal);
+                println!("{}", literal.stringify());
             }
             Err(e) => {
                 writeln!(io::stderr(), "{}", e);

@@ -1,4 +1,7 @@
-use std::{borrow::Cow, fmt::{self}};
+use std::{
+    borrow::Cow,
+    fmt::{self},
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
@@ -130,12 +133,23 @@ impl fmt::Display for Literal {
     }
 }
 
+impl Literal {
+    /// For printing to the terminal, different rules from scan phase
+    pub fn stringify(&self) -> String {
+        match self {
+            Literal::Number(n) => {
+                format!("{n}")
+            }
+            _ => format!("{self}"),
+        }
+    }
+}
+
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.token {
-            TokenType::Nil =>write!(f, "NIL nil null"), 
-            _ =>write!(f, "{} {} {}", self.token, self.lexeme, self.literal)
+            TokenType::Nil => write!(f, "NIL nil null"),
+            _ => write!(f, "{} {} {}", self.token, self.lexeme, self.literal),
         }
-        
     }
 }

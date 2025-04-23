@@ -83,11 +83,8 @@ fn main() {
                 match stmt {
                     Ok(Stmt::Print(expr)) | Ok(Stmt::Expr(expr)) => {
                         match interpreter.evaluate(&expr) {
-                            Ok(val) => match val {
-                                Literal::Number(n) => {
-                                    println!("{n}")
-                                }
-                                _ => println!("{val}"),
+                            Ok(val) => {
+                                println!("{}", val.stringify());
                             },
                             Err(e) => {
                                 exit_code = 70;
