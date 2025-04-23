@@ -76,12 +76,12 @@ fn main() {
         }
         "evaluate" => {
             let scanner = Scanner::new(&file_contents);
-            let parser = Parser::new(scanner);
+            let mut parser = Parser::new(scanner);
             let mut interpreter = Interpreter::new();
 
-            for stmt in parser {
-                match stmt {
-                    Ok(Stmt::Print(expr)) | Ok(Stmt::Expr(expr)) => {
+            if let Some(expr) = parser.parse() {
+                match expr {
+                    Ok(expr) => {
                         match interpreter.evaluate(&expr) {
                             Ok(val) => {
                                 println!("{}", val.stringify());

@@ -41,6 +41,29 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Parses the first expression from the list of tokens and advances the
+    /// iterator.
+    pub fn parse(&mut self) -> Option<Result<Expr, ParseError>> {
+        if self.current.is_none() {
+            return None;
+        }
+
+        let result = self.expression();
+        match result {
+            Err(ParseError::ScanError(_)) => self.advance(),
+            _ => (),
+        }
+
+        // If the first expression was instead an expression statement
+        if let Some(Ok(token)) = &self.current {
+            if  token.token == TokenType::Semicolon {
+                self.advance();
+            }
+        }
+
+        Some(result)
+    }
+
     fn advance(&mut self) {
         self.current = self.tokens.next();
     }
