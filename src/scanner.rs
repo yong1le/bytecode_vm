@@ -35,6 +35,7 @@ impl<'a> Scanner<'a> {
                     break;
                 }
                 Some('\n') => {
+                    lexeme.push('\n');
                     self.line += 1;
                     self.advance();
                 }
