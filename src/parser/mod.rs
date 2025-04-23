@@ -120,10 +120,14 @@ impl<'a> Parser<'a> {
         match t.token {
             TokenType::Identifier => {
                 self.advance();
-                self.match_and_advance(&vec![TokenType::Equal])?;
-                let initializer = self.expression()?;
-                self.match_and_advance(&vec![TokenType::Semicolon])?;
-                Ok(Stmt::Variable(t.lexeme, initializer))
+                if let Err(_) = self.match_and_advance(&vec![TokenType::Equal]) {
+                    self.match_and_advance(&vec![TokenType::Semicolon])?;
+                    Ok(Stmt::Variable(t.lexeme, Expr::Literal(Literal::Nil)))
+                } else {
+                    let initializer = self.expression()?;
+                    self.match_and_advance(&vec![TokenType::Semicolon])?;
+                    Ok(Stmt::Variable(t.lexeme, initializer))
+                }
             }
             _ => Err(ParseError::ExpectedChar(
                 t.line,
