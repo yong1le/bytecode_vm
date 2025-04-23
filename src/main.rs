@@ -115,6 +115,8 @@ fn main() {
                     }
                 }
             }
+
+            exit(exit_code);
         }
         _ => {
             writeln!(io::stderr(), "Unknown command: {}", command).unwrap();

@@ -1,5 +1,5 @@
 use core::fmt;
-use std::io::{self, Write};
+use std::{io::{self, Write}, process::exit};
 
 use crate::{
     parser::{
@@ -106,6 +106,7 @@ impl StmtVisitor for Interpreter {
             }
             Err(e) => {
                 writeln!(io::stderr(), "{}", e);
+                exit(70);
             }
         };
     }
@@ -115,6 +116,7 @@ impl StmtVisitor for Interpreter {
             Ok(literal) => (),
             Err(e) => {
                 writeln!(io::stderr(), "{}", e);
+                exit(70);
             }
         };
     }
