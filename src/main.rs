@@ -58,9 +58,9 @@ fn main() {
         }
         "parse" => {
             let scanner = Scanner::new(&file_contents);
-            let parser = Parser::new(scanner);
+            let mut parser = Parser::new(scanner);
 
-            for expr in parser {
+            if let Some(expr) = parser.parse() {
                 match expr {
                     Ok(expr) => {
                         println!("{expr}");
