@@ -1,16 +1,25 @@
-use std::collections::HashMap;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::token::Literal;
 
 pub struct Environment {
+    enclosing: Option<Rc<RefCell<Environment>>>,
     values: HashMap<String, Literal>,
 }
 
 impl Environment {
-    pub fn new() -> Self {
-        Self {
+    pub fn new() -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(Self {
+            enclosing: None,
             values: HashMap::new(),
-        }
+        }))
+    }
+
+    pub fn block(enclosing: &Rc<RefCell<Self>>) -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(Self {
+            enclosing: Some(Rc::clone(enclosing)),
+            values: HashMap::new(),
+        }))
     }
 
     pub fn define(&mut self, id: &String, value: Literal) {

@@ -10,7 +10,8 @@ use crate::{
 // program        →  declaration* EOF;
 // declaration    -> varDecl | statement;
 // varDecl        -> "var" IDENTIFIER ( "=" )? ";";
-// statement      → exprStmt | printStmt ;
+// statement      → exprStmt | printStmt | block ;
+// block          -> "{" declaration* "}"
 // exprStmt       → expression ";" '
 // printStmt      → "print" expression ";" ;
 
@@ -168,6 +169,10 @@ impl<'a> Parser<'a> {
                 self.advance()?;
                 self.print_stmt()
             }
+            TokenType::LeftBrace => {
+                self.advance()?;
+                self.block()
+            }
             _ => self.expression_stmt(),
         }
     }
@@ -176,6 +181,28 @@ impl<'a> Parser<'a> {
         let print_expr = self.expression()?;
         self.consume(&vec![TokenType::Semicolon])?;
         Ok(Stmt::Print(print_expr))
+    }
+
+    fn block(&mut self) -> Result<Stmt, ParseError> {
+        let mut statements = vec![];
+
+        loop {
+            let token = self.peek()?;
+            match token.token {
+                TokenType::Eof => {
+                    return Err(ParseError::ExpectedChar(
+                        token.line,
+                        "EOF".to_string(),
+                        format!("{}", TokenType::Semicolon)
+                    ))
+                }
+                TokenType::RightBrace => break,
+                _ => statements.push(self.declaration()?),
+            }
+        }
+
+        self.consume(&vec![TokenType::RightBrace])?;
+        Ok(Stmt::Block(statements))
     }
 
     /// Basically expression, but consume the semicolon

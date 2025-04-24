@@ -1,3 +1,5 @@
+use std::{cell::RefCell, rc::Rc};
+
 use crate::{
     ast::{
         expr::{Expr, ExprVisitor},
@@ -9,7 +11,7 @@ use crate::{
 };
 
 pub struct Interpreter {
-    env: Environment,
+    env: Rc<RefCell<Environment>>,
 }
 
 impl Interpreter {
@@ -42,7 +44,10 @@ impl ExprVisitor<Result<Literal, EvalError>> for Interpreter {
             (TokenType::Bang, Literal::String(s)) => Ok(Literal::Boolean(s.is_empty())),
             (TokenType::Bang, Literal::Nil) => Ok(Literal::Boolean(true)),
             (TokenType::Minus, Literal::Number(num)) => Ok(Literal::Number(-num)),
-            (TokenType::Minus, _) => Err(EvalError::TypeError(operator.line, "Operand must be a number.")),
+            (TokenType::Minus, _) => Err(EvalError::TypeError(
+                operator.line,
+                "Operand must be a number.",
+            )),
             _ => Ok(Literal::Nil),
         }
     }
@@ -69,29 +74,44 @@ impl ExprVisitor<Result<Literal, EvalError>> for Interpreter {
                 TokenType::GreaterEqual => Ok(Literal::Boolean(n1 >= n2)),
                 TokenType::EqualEqual => Ok(Literal::Boolean(n1 == n2)),
                 TokenType::BangEqual => Ok(Literal::Boolean(n1 != n2)),
-                _ => Err(EvalError::TypeError(operator.line, "Operand not implemented.")),
+                _ => Err(EvalError::TypeError(
+                    operator.line,
+                    "Operand not implemented.",
+                )),
             },
             // +, ==, !=
             (Literal::String(s1), Literal::String(s2)) => match &operator.token {
                 TokenType::Plus => Ok(Literal::String(s1 + s2)),
                 TokenType::EqualEqual => Ok(Literal::Boolean(s1 == s2)),
                 TokenType::BangEqual => Ok(Literal::Boolean(s1 != s2)),
-                _ => Err(EvalError::TypeError(operator.line, "Operands must be numbers.")),
+                _ => Err(EvalError::TypeError(
+                    operator.line,
+                    "Operands must be numbers.",
+                )),
             },
             (Literal::Boolean(b1), Literal::Boolean(b2)) => match operator.token {
                 TokenType::EqualEqual => Ok(Literal::Boolean(b1 == b2)),
                 TokenType::BangEqual => Ok(Literal::Boolean(b1 != b2)),
-                _ => Err(EvalError::TypeError(operator.line, "Operands must be numbers.")),
+                _ => Err(EvalError::TypeError(
+                    operator.line,
+                    "Operands must be numbers.",
+                )),
             },
             (Literal::Nil, Literal::Nil) => match operator.token {
                 TokenType::EqualEqual => Ok(Literal::Boolean(true)),
                 TokenType::BangEqual => Ok(Literal::Boolean(false)),
-                _ => Err(EvalError::TypeError(operator.line, "Operands must be numbers.")),
+                _ => Err(EvalError::TypeError(
+                    operator.line,
+                    "Operands must be numbers.",
+                )),
             },
             _ => match operator.token {
                 TokenType::EqualEqual => Ok(Literal::Boolean(false)),
                 TokenType::BangEqual => Ok(Literal::Boolean(true)),
-                _ => Err(EvalError::TypeError(operator.line, "Operands must be numbers.")),
+                _ => Err(EvalError::TypeError(
+                    operator.line,
+                    "Operands must be numbers.",
+                )),
             },
         }
     }
@@ -101,7 +121,7 @@ impl ExprVisitor<Result<Literal, EvalError>> for Interpreter {
     }
 
     fn visit_variable(&mut self, id: &Token) -> Result<Literal, EvalError> {
-        match self.env.get(&id.lexeme) {
+        match self.env.borrow().get(&id.lexeme) {
             Some(var) => Ok(var.to_owned()),
             None => Err(EvalError::NameError(id.line, id.to_string())),
         }
@@ -110,7 +130,7 @@ impl ExprVisitor<Result<Literal, EvalError>> for Interpreter {
     fn visit_assignment(&mut self, id: &Token, assignment: &Expr) -> Result<Literal, EvalError> {
         let literal = self.evaluate(assignment);
         match literal {
-            Ok(l) => match self.env.assign(&id.lexeme, l.to_owned()) {
+            Ok(l) => match self.env.borrow_mut().assign(&id.lexeme, l.to_owned()) {
                 Ok(()) => Ok(l.to_owned()),
                 Err(()) => Err(EvalError::NameError(id.line, id.lexeme.to_owned())),
             },
@@ -141,10 +161,18 @@ impl StmtVisitor<Result<(), EvalError>> for Interpreter {
         let literal = self.evaluate(expr);
         match literal {
             Ok(l) => {
-                self.env.define(&id.lexeme, l);
+                self.env.borrow_mut().define(&id.lexeme, l);
                 Ok(())
             }
             Err(e) => Err(e),
         }
+    }
+
+    fn visit_block(&mut self, statements: &Vec<Stmt>) -> Result<(), EvalError> {
+        for s in statements {
+            self.interpret(s)?;
+        }
+
+        Ok(())
     }
 }

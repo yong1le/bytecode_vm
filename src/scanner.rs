@@ -184,7 +184,7 @@ impl Iterator for Scanner<'_> {
                         token: TokenType::Eof,
                         lexeme: "".to_string(),
                         literal: Literal::None,
-                        line: self.line + 1
+                        line: self.line
                     }))
                 }
             }
