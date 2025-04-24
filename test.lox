@@ -1,1 +1,6 @@
-var too
+var hello = "world";
+
+{
+   hello = "hello";
+}
+print hello;

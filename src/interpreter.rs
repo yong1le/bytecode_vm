@@ -30,6 +30,10 @@ impl Interpreter {
     pub fn interpret(&mut self, stmt: &Stmt) -> Result<(), EvalError> {
         stmt.accept(self)
     }
+
+    fn set_env(&mut self, env: Rc<RefCell<Environment>>) {
+        self.env = env;
+    }
 }
 
 impl ExprVisitor<Result<Literal, EvalError>> for Interpreter {
@@ -122,8 +126,8 @@ impl ExprVisitor<Result<Literal, EvalError>> for Interpreter {
 
     fn visit_variable(&mut self, id: &Token) -> Result<Literal, EvalError> {
         match self.env.borrow().get(&id.lexeme) {
-            Some(var) => Ok(var.to_owned()),
-            None => Err(EvalError::NameError(id.line, id.to_string())),
+            Some(var) => Ok(var),
+            None => Err(EvalError::NameError(id.line, id.lexeme.to_string())),
         }
     }
 
@@ -169,9 +173,19 @@ impl StmtVisitor<Result<(), EvalError>> for Interpreter {
     }
 
     fn visit_block(&mut self, statements: &Vec<Stmt>) -> Result<(), EvalError> {
+        let new_env = Environment::block(&self.env);
+        self.set_env(new_env);
         for s in statements {
             self.interpret(s)?;
         }
+
+        let old_env = self
+            .env
+            .borrow()
+            .get_enclosing()
+            .unwrap_or(Environment::new());
+
+        self.set_env(old_env);
 
         Ok(())
     }
