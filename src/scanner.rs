@@ -1,5 +1,5 @@
+use crate::errors::ScanError;
 use crate::token::{Literal, Token, TokenType};
-use core::fmt;
 use std::iter::Peekable;
 use std::str::Chars;
 pub struct Scanner<'a> {
@@ -236,25 +236,6 @@ impl Iterator for Scanner<'_> {
                 line: self.line,
             })),
             Err(e) => Some(Err(e)),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum ScanError {
-    UnterminatedString(u32),
-    UnexpectedCharacter(u32, char),
-}
-
-impl fmt::Display for ScanError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::UnterminatedString(line) => {
-                write!(f, "[line {}] Error: Unterminated string.", line)
-            }
-            Self::UnexpectedCharacter(line, ch) => {
-                write!(f, "[line {}] Error: Unexpected character: {}", line, ch)
-            }
         }
     }
 }

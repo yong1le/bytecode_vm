@@ -2,12 +2,14 @@ use core::fmt;
 
 use crate::token::{Literal, Token};
 
+#[derive(Debug, Clone)]
 pub enum Expr {
     Literal(Literal),                    // NUMBER, STRING, true, false, nil
     Unary(Token, Box<Expr>),             // !, -
     Binary(Token, Box<Expr>, Box<Expr>), // +, -, *, /, <, <=, >, >=
     Grouping(Box<Expr>),                 // (, )
-    Variable(String),
+    Variable(Token),
+    Assign(Token, Box<Expr>),
 }
 
 pub trait ExprVisitor<T> {
@@ -15,7 +17,8 @@ pub trait ExprVisitor<T> {
     fn visit_unary(&mut self, operator: &Token, expr: &Expr) -> T;
     fn visit_binary(&mut self, operator: &Token, left: &Expr, right: &Expr) -> T;
     fn visit_grouping(&mut self, expr: &Expr) -> T;
-    fn visit_variable(&mut self, id: &String) -> T;
+    fn visit_variable(&mut self, id: &Token) -> T;
+    fn visit_assignment(&mut self, id: &Token, assignment: &Expr) -> T;
 }
 
 impl Expr {
@@ -26,6 +29,7 @@ impl Expr {
             Expr::Binary(op, left, right) => visitor.visit_binary(op, left, right),
             Expr::Grouping(expr) => visitor.visit_grouping(expr),
             Expr::Variable(id) => visitor.visit_variable(id),
+            Expr::Assign(id, assignment) => visitor.visit_assignment(id, assignment),
         }
     }
 }
@@ -37,7 +41,8 @@ impl fmt::Display for Expr {
             Expr::Unary(token, expr) => write!(f, "({} {})", token.lexeme, expr),
             Expr::Binary(token, e1, e2) => write!(f, "({} {} {})", token.lexeme, e1, e2),
             Expr::Grouping(e) => write!(f, "(group {})", e),
-            Expr::Variable(id) => write!(f, "({})", id),
+            Expr::Variable(id) => write!(f, "({})", id.lexeme),
+            Expr::Assign(id, expr) => write!(f, "({} ({}))", id.lexeme, expr),
         }
     }
 }

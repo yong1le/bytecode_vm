@@ -1,19 +1,19 @@
+mod ast;
+mod errors;
 mod interpreter;
 mod parser;
 mod scanner;
 mod token;
+mod environment;
 
 use std::env;
 use std::fs;
 use std::io::{self, Write};
 use std::process::exit;
 
-use interpreter::EvalError;
 use interpreter::Interpreter;
-use parser::stmt::Stmt;
 use parser::Parser;
 use scanner::Scanner;
-use token::Literal;
 
 fn read_file(filename: &String) -> String {
     fs::read_to_string(filename).unwrap_or_else(|_| {
@@ -25,7 +25,12 @@ fn read_file(filename: &String) -> String {
 fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() < 3 {
-        writeln!(io::stderr(), "Usage: {} tokenize <filename>", args[0]).unwrap();
+        writeln!(
+            io::stderr(),
+            "Usage: {} [tokenize|parse|evaluate|run] <filename>",
+            args[0]
+        )
+        .unwrap();
         return;
     }
 
@@ -48,7 +53,7 @@ fn main() {
                     }
                     Err(e) => {
                         exit_code = 65;
-                        writeln!(io::stderr(), "{e}");
+                        writeln!(io::stderr(), "{e}").unwrap();
                     }
                 };
             }
@@ -67,7 +72,7 @@ fn main() {
                     }
                     Err(e) => {
                         exit_code = 65;
-                        writeln!(io::stderr(), "{e}");
+                        writeln!(io::stderr(), "{e}").unwrap();
                     }
                 }
             }
@@ -81,20 +86,18 @@ fn main() {
 
             if let Some(expr) = parser.parse() {
                 match expr {
-                    Ok(expr) => {
-                        match interpreter.evaluate(&expr) {
-                            Ok(val) => {
-                                println!("{}", val.stringify());
-                            },
-                            Err(e) => {
-                                exit_code = 70;
-                                writeln!(io::stderr(), "{e}");
-                            }
+                    Ok(expr) => match interpreter.evaluate(&expr) {
+                        Ok(val) => {
+                            println!("{}", val.stringify());
                         }
-                    }
+                        Err(e) => {
+                            exit_code = 70;
+                            writeln!(io::stderr(), "{e}").unwrap();
+                        }
+                    },
                     Err(e) => {
                         exit_code = 65;
-                        writeln!(io::stderr(), "{e}");
+                        writeln!(io::stderr(), "{e}").unwrap();
                     }
                 }
             }
@@ -106,7 +109,21 @@ fn main() {
             let parser = Parser::new(scanner);
             let mut interpreter = Interpreter::new();
 
-            parser.for_each(|stmt|  interpreter.interpret(&stmt));
+            parser.for_each(|stmt| match stmt {
+                Ok(s) => match interpreter.interpret(&s) {
+                    Ok(()) => (),
+                    Err(e) => {
+                        writeln!(io::stderr(), "{e}").unwrap();
+                        exit(70);
+                    }
+                },
+                Err(e) => {
+                    exit_code = 65;
+                    writeln!(io::stderr(), "{e}").unwrap()
+                }
+            });
+
+            exit(exit_code);
         }
         _ => {
             writeln!(io::stderr(), "Unknown command: {}", command).unwrap();

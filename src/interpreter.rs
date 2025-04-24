@@ -1,26 +1,21 @@
-use core::fmt;
-use std::{
-    collections::HashMap,
-    io::{self, Write},
-    process::exit,
-};
-
 use crate::{
-    parser::{
+    ast::{
         expr::{Expr, ExprVisitor},
         stmt::{Stmt, StmtVisitor},
     },
+    environment::Environment,
+    errors::EvalError,
     token::{Literal, Token, TokenType},
 };
 
 pub struct Interpreter {
-    env: HashMap<String, Literal>,
+    env: Environment,
 }
 
 impl Interpreter {
     pub fn new() -> Self {
         Self {
-            env: HashMap::new(),
+            env: Environment::new(),
         }
     }
 
@@ -30,13 +25,8 @@ impl Interpreter {
     }
 
     /// Executes a single statement, storing its side effects into the environment
-    pub fn interpret(&mut self, stmt: &Stmt) {
+    pub fn interpret(&mut self, stmt: &Stmt) -> Result<(), EvalError> {
         stmt.accept(self)
-    }
-
-    fn runtime_panic(&self, error: EvalError) {
-        writeln!(io::stderr(), "{error}");
-        exit(70);
     }
 }
 
@@ -52,7 +42,7 @@ impl ExprVisitor<Result<Literal, EvalError>> for Interpreter {
             (TokenType::Bang, Literal::String(s)) => Ok(Literal::Boolean(s.is_empty())),
             (TokenType::Bang, Literal::Nil) => Ok(Literal::Boolean(true)),
             (TokenType::Minus, Literal::Number(num)) => Ok(Literal::Number(-num)),
-            (TokenType::Minus, _) => Err(EvalError::ValueError("Operand must be a number.")),
+            (TokenType::Minus, _) => Err(EvalError::TypeError(operator.line, "Operand must be a number.")),
             _ => Ok(Literal::Nil),
         }
     }
@@ -79,29 +69,29 @@ impl ExprVisitor<Result<Literal, EvalError>> for Interpreter {
                 TokenType::GreaterEqual => Ok(Literal::Boolean(n1 >= n2)),
                 TokenType::EqualEqual => Ok(Literal::Boolean(n1 == n2)),
                 TokenType::BangEqual => Ok(Literal::Boolean(n1 != n2)),
-                _ => Err(EvalError::ValueError("Operand not implemented.")),
+                _ => Err(EvalError::TypeError(operator.line, "Operand not implemented.")),
             },
             // +, ==, !=
             (Literal::String(s1), Literal::String(s2)) => match &operator.token {
                 TokenType::Plus => Ok(Literal::String(s1 + s2)),
                 TokenType::EqualEqual => Ok(Literal::Boolean(s1 == s2)),
                 TokenType::BangEqual => Ok(Literal::Boolean(s1 != s2)),
-                _ => Err(EvalError::ValueError("Operands must be numbers.")),
+                _ => Err(EvalError::TypeError(operator.line, "Operands must be numbers.")),
             },
             (Literal::Boolean(b1), Literal::Boolean(b2)) => match operator.token {
                 TokenType::EqualEqual => Ok(Literal::Boolean(b1 == b2)),
                 TokenType::BangEqual => Ok(Literal::Boolean(b1 != b2)),
-                _ => Err(EvalError::ValueError("Operands must be numbers.")),
+                _ => Err(EvalError::TypeError(operator.line, "Operands must be numbers.")),
             },
             (Literal::Nil, Literal::Nil) => match operator.token {
                 TokenType::EqualEqual => Ok(Literal::Boolean(true)),
                 TokenType::BangEqual => Ok(Literal::Boolean(false)),
-                _ => Err(EvalError::ValueError("Operands must be numbers.")),
+                _ => Err(EvalError::TypeError(operator.line, "Operands must be numbers.")),
             },
             _ => match operator.token {
                 TokenType::EqualEqual => Ok(Literal::Boolean(false)),
                 TokenType::BangEqual => Ok(Literal::Boolean(true)),
-                _ => Err(EvalError::ValueError("Operands must be numbers.")),
+                _ => Err(EvalError::TypeError(operator.line, "Operands must be numbers.")),
             },
         }
     }
@@ -110,58 +100,51 @@ impl ExprVisitor<Result<Literal, EvalError>> for Interpreter {
         self.evaluate(expr)
     }
 
-    fn visit_variable(&mut self, id: &String) -> Result<Literal, EvalError> {
-        match self.env.get(id) {
+    fn visit_variable(&mut self, id: &Token) -> Result<Literal, EvalError> {
+        match self.env.get(&id.lexeme) {
             Some(var) => Ok(var.to_owned()),
-            None => Err(EvalError::NameError(id.to_string())),
+            None => Err(EvalError::NameError(id.line, id.to_string())),
+        }
+    }
+
+    fn visit_assignment(&mut self, id: &Token, assignment: &Expr) -> Result<Literal, EvalError> {
+        let literal = self.evaluate(assignment);
+        match literal {
+            Ok(l) => match self.env.assign(&id.lexeme, l.to_owned()) {
+                Ok(()) => Ok(l.to_owned()),
+                Err(()) => Err(EvalError::NameError(id.line, id.lexeme.to_owned())),
+            },
+            Err(e) => Err(e),
         }
     }
 }
 
-impl StmtVisitor for Interpreter {
-    fn visit_print(&mut self, expr: &Expr) {
+impl StmtVisitor<Result<(), EvalError>> for Interpreter {
+    fn visit_print(&mut self, expr: &Expr) -> Result<(), EvalError> {
         match self.evaluate(expr) {
             Ok(literal) => {
                 println!("{}", literal.stringify());
+                Ok(())
             }
-            Err(e) => {
-                self.runtime_panic(e);
-            }
-        };
+            Err(e) => Err(e),
+        }
     }
 
-    fn visit_expr(&mut self, expr: &Expr) {
+    fn visit_expr(&mut self, expr: &Expr) -> Result<(), EvalError> {
         match self.evaluate(expr) {
-            Ok(_) => (),
-            Err(e) => {
-                self.runtime_panic(e);
-            }
-        };
+            Ok(_) => Ok(()),
+            Err(e) => Err(e),
+        }
     }
 
-    fn visit_variable(&mut self, id: &String, expr: &Expr) {
+    fn visit_declare_var(&mut self, id: &Token, expr: &Expr) -> Result<(), EvalError> {
         let literal = self.evaluate(expr);
         match literal {
             Ok(l) => {
-                self.env.insert(id.to_owned(), l);
+                self.env.define(&id.lexeme, l);
+                Ok(())
             }
-            Err(e) => {
-                self.runtime_panic(e);
-            }
-        }
-    }
-}
-
-pub enum EvalError {
-    ValueError(&'static str),
-    NameError(String),
-}
-
-impl fmt::Display for EvalError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            EvalError::ValueError(s) => write!(f, "{}", s),
-            EvalError::NameError(s) => write!(f, "variable '{}' is not defined.", s),
+            Err(e) => Err(e),
         }
     }
 }
