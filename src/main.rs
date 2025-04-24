@@ -57,7 +57,6 @@ fn main() {
                     }
                 };
             }
-            println!("EOF  null");
 
             exit(exit_code);
         }
