@@ -39,18 +39,16 @@ impl<'a> Parser<'a> {
     /// Parses the first expression from the list of tokens and advances the
     /// iterator.
     pub fn parse(&mut self) -> Option<Result<Expr, ParseError>> {
-        if self.tokens.next().is_none() {
-            return None;
+        match &self.tokens.peek() {
+            Some(Ok(token)) => match token.token {
+                TokenType::Eof => return None,
+                _ => (),
+            },
+            None => return None,
+            _ => (),
         }
 
         let result = self.expression();
-
-        // If the first expression was instead an expression statement
-        if let Ok(token) = self.peek() {
-            if token.token == TokenType::Semicolon {
-                self.advance().unwrap();
-            }
-        }
 
         Some(result)
     }
@@ -131,13 +129,13 @@ impl<'a> Parser<'a> {
         match t.token {
             TokenType::Var => {
                 self.advance()?;
-                self.decalre_var()
+                self.declare_var()
             }
             _ => self.statement(),
         }
     }
 
-    fn decalre_var(&mut self) -> Result<Stmt, ParseError> {
+    fn declare_var(&mut self) -> Result<Stmt, ParseError> {
         let identifier_token = self.advance()?;
 
         match identifier_token.token {
@@ -328,8 +326,13 @@ impl<'a> Iterator for Parser<'a> {
     type Item = Result<Stmt, ParseError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.tokens.peek().is_none() {
-            return None;
+        match &self.tokens.peek() {
+            Some(Ok(token)) => match token.token {
+                TokenType::Eof => return None,
+                _ => (),
+            },
+            None => return None,
+            _ => (),
         }
 
         match self.declaration() {

@@ -6,6 +6,7 @@ pub struct Scanner<'a> {
     current: Option<char>,
     chars: Peekable<Chars<'a>>,
     line: u32,
+    eof: bool,
 }
 
 impl<'a> Scanner<'a> {
@@ -15,6 +16,7 @@ impl<'a> Scanner<'a> {
             current: chars.next(),
             chars,
             line: 1,
+            eof: false,
         }
     }
 
@@ -173,7 +175,19 @@ impl Iterator for Scanner<'_> {
 
         let &c = match &self.current {
             Some(c) => c,
-            None => return None,
+            None => {
+                if self.eof {
+                    return None
+                } else {
+                    self.eof = true;
+                    return Some(Ok(Token {
+                        token: TokenType::Eof,
+                        lexeme: " ".to_string(),
+                        literal: Literal::None,
+                        line: self.line + 1
+                    }))
+                }
+            }
         };
 
         self.advance();

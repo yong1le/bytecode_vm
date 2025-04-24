@@ -44,6 +44,8 @@ pub enum TokenType {
     True,
     Var,
     While,
+
+    Eof,
 }
 #[derive(Debug, Clone)]
 pub enum Literal {
@@ -106,6 +108,7 @@ impl fmt::Display for TokenType {
                 TokenType::True => "TRUE",
                 TokenType::Var => "VAR",
                 TokenType::While => "WHILE",
+                TokenType::Eof => "EOF"
             }
         )
     }
