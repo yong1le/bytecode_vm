@@ -36,7 +36,7 @@ impl fmt::Display for Stmt {
             Stmt::Expr(e) => write!(f, "{}", e),
             Stmt::Print(e) => write!(f, "(print {})", e),
             Stmt::DeclareVar(id, expr) => write!(f, "(var {} ({}))", id.lexeme, expr),
-            Stmt::Block(stmts) => todo!(),
+            Stmt::Block(stmts) => write!(f, "(block {:?})", stmts),
         }
     }
 }
