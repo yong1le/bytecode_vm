@@ -182,7 +182,7 @@ impl Iterator for Scanner<'_> {
                     self.eof = true;
                     return Some(Ok(Token {
                         token: TokenType::Eof,
-                        lexeme: " ".to_string(),
+                        lexeme: "".to_string(),
                         literal: Literal::None,
                         line: self.line + 1
                     }))
