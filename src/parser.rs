@@ -200,6 +200,10 @@ impl<'a> Parser<'a> {
                 self.advance()?;
                 self.while_stmt()
             }
+            TokenType::For => {
+                self.advance()?;
+                self.for_stmt()
+            }
             _ => self.expression_stmt(),
         }
     }
@@ -260,6 +264,55 @@ impl<'a> Parser<'a> {
         let while_block = self.statement()?;
 
         Ok(Stmt::While(condition, Box::new(while_block)))
+    }
+
+    fn for_stmt(&mut self) -> Result<Stmt, SyntaxError> {
+        self.consume(TokenType::LeftParen)?;
+
+        let initializer = match self.peek()?.token {
+            TokenType::Semicolon => {
+                self.advance()?;
+                None
+            }
+            TokenType::Var => {
+                self.advance()?;
+                Some(self.declare_var()?)
+            }
+            _ => Some(self.expression_stmt()?),
+        };
+
+        let condition = match self.peek()?.token {
+            TokenType::Semicolon => None,
+            _ => Some(self.expression()?),
+        };
+        self.consume(TokenType::Semicolon)?;
+
+        let increment = match self.peek()?.token {
+            TokenType::RightParen => None,
+            _ => Some(self.expression()?),
+        };
+        self.consume(TokenType::RightParen)?;
+
+        let mut body = self.statement()?;
+
+        if let Some(inc) = increment {
+            body = Stmt::Block(vec![body, Stmt::Expr(inc)]);
+        };
+
+        match condition {
+            Some(cond) => {
+                body = Stmt::While(cond, Box::new(body));
+            }
+            None => {
+                body = Stmt::While(Expr::Literal(Literal::Boolean(true)), Box::new(body));
+            }
+        };
+
+        if let Some(init) = initializer {
+            body = Stmt::Block(vec![init, body]);
+        };
+
+        Ok(body)
     }
 
     fn expression_stmt(&mut self) -> Result<Stmt, SyntaxError> {
