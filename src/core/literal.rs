@@ -1,5 +1,6 @@
 use std::{borrow::Cow, fmt};
 
+/// The literal values that can be used by Lox.
 #[derive(Debug, Clone)]
 pub enum Literal {
     String(Cow<'static, str>),
@@ -40,4 +41,3 @@ impl Literal {
         }
     }
 }
-

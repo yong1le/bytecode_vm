@@ -3,21 +3,33 @@ use crate::core::literal::Literal;
 use crate::core::token::{Token, TokenType};
 use std::iter::Peekable;
 use std::str::Chars;
+
+/// An iterator over the tokens in the source code.
 pub struct Scanner<'a> {
+    /// An iterator over the characters in the source code.
     chars: Peekable<Chars<'a>>,
+    /// The current line number processed to in the source code.
     line: u32,
+    /// Whether the end of the file has been reached.
     eof: bool,
+    /// Temporary store for a character that was skipped over.
+    unget: Option<char>,
 }
 
 impl<'a> Scanner<'a> {
+    /// Creates a new scanner for the given source code.
     pub fn new(source: &'a str) -> Self {
         Self {
             chars: source.chars().peekable(),
             line: 1,
             eof: false,
+            unget: None,
         }
     }
 
+    /// Tokenizes a string from the source code.
+    ///
+    /// Returns a `ScanError::UnterminatedString` if the string is not terminated.
     fn tokenize_string(&mut self) -> Result<(TokenType, Literal, String), ScanError> {
         let mut lexeme = String::from('"');
         loop {
@@ -51,25 +63,30 @@ impl<'a> Scanner<'a> {
         ))
     }
 
+    /// Tokenizes a number from the source code.
+    ///
+    /// Numbers cannot be preceded by decimals nor can they be end with a decimal.
     fn tokenize_number(&mut self, init: char) -> Result<(TokenType, Literal, String), ScanError> {
         let mut lexeme = String::from(init);
         let mut has_decimal = false;
 
-        while let Some(&d) = &self.peek() {
+        while let Some(&d) = self.peek() {
             if d == '.' {
                 if has_decimal {
                     break;
                 }
 
-                if let Some(&next_char) = self.chars.peek() {
+                self.advance(); // skips the decimal point
+                if let Some(&next_char) = self.peek() {
                     if next_char.is_ascii_digit() {
                         has_decimal = true;
                         lexeme.push('.');
-                        self.advance();
                     } else {
+                        self.unget = Some('.');
                         break;
                     }
                 } else {
+                    self.unget = Some('.');
                     break;
                 }
             } else if d.is_ascii_digit() {
@@ -87,6 +104,9 @@ impl<'a> Scanner<'a> {
         ))
     }
 
+    /// Tokenizes an identifier from the source code.
+    ///
+    /// Identifiers can contain letters, digits, and underscores.
     fn tokenize_identifier(
         &mut self,
         init: char,
@@ -127,6 +147,7 @@ impl<'a> Scanner<'a> {
         ))
     }
 
+    /// Skips over all whitespace and comments in the source code.
     fn skip_whitespace(&mut self) {
         while let Some(&c) = &self.peek() {
             match c {
@@ -137,26 +158,46 @@ impl<'a> Scanner<'a> {
                     self.line += 1;
                     self.advance();
                 }
+                '/' => {
+                    self.advance(); // skips over first '/'
+                    match self.peek() {
+                        // if the second character is also a '/'
+                        Some(&'/') => {
+                            self.advance(); // skips over the second '/'
+                            while self.peek() != Some(&'\n') && self.peek().is_some() {
+                                self.advance();
+                            }
+                        }
+                        _ => {
+                            self.unget = Some('/');
+                            break;
+                        }
+                    }
+                }
                 _ => break,
             }
         }
     }
 
-    fn skip_comment(&mut self, init: char) {
-        if init == '/' && self.chars.peek() == Some(&'/') {
-            self.advance();
-            while self.peek() != Some(&'\n') && self.peek().is_some() {
-                self.advance();
-            }
+    /// Advance the internal character iterator by one character. If there is some value
+    /// in `self.unget`, return that value instead.
+    fn advance(&mut self) -> Option<char> {
+        if self.unget.is_some() {
+            let unget = self.unget;
+            self.unget = None;
+            unget
+        } else {
+            self.chars.next()
         }
     }
 
-    fn advance(&mut self) -> Option<char> {
-        self.chars.next()
-    }
-
+    /// Peeks at the next character in the source code without consuming it.
     fn peek(&mut self) -> Option<&char> {
-        self.chars.peek()
+        if self.unget.is_some() {
+            self.unget.as_ref()
+        } else {
+            self.chars.peek()
+        }
     }
 }
 
@@ -184,7 +225,6 @@ impl Iterator for Scanner<'_> {
         };
 
         self.advance();
-        self.skip_comment(c);
 
         let result = match c {
             '(' => Ok((TokenType::LeftParen, Literal::Nil, "(".to_string())),

@@ -4,6 +4,7 @@ use crate::core::token::Token;
 
 use super::expr::Expr;
 
+/// Enum to represent different types of statements in the AST.
 #[derive(Debug, Clone)]
 pub enum Stmt {
     Print(Expr),
@@ -12,6 +13,7 @@ pub enum Stmt {
     Block(Vec<Stmt>),
 }
 
+/// A struct that visits `Stmt`
 pub trait StmtVisitor<T> {
     fn visit_print(&mut self, stmt: &Expr) -> T;
     fn visit_expr(&mut self, expr: &Expr) -> T;

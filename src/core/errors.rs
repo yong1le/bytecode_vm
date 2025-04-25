@@ -2,14 +2,16 @@ use std::fmt;
 
 use crate::ast::expr::Expr;
 
+/// Errors that can occur during scanning/lexical analysis.
 #[derive(Debug, Clone)]
 pub enum ScanError {
     UnterminatedString(u32),
     UnexpectedCharacter(u32, char),
 }
 
+/// Syntactical errors that can occur during parsing.
 #[derive(Debug, Clone)]
-pub enum ParseError {
+pub enum SyntaxError {
     ScanError(ScanError),
     ExpectedChar(u32, String, String),
     ExpectedExpression(u32, String),
@@ -17,8 +19,9 @@ pub enum ParseError {
     InvalidAssignment(u32, Expr),
 }
 
+/// Runtime errors that occur while executing the program.
 #[derive(Debug, Clone)]
-pub enum EvalError {
+pub enum RuntimeError {
     TypeError(u32, &'static str),
     NameError(u32, String),
 }
@@ -36,7 +39,7 @@ impl fmt::Display for ScanError {
     }
 }
 
-impl fmt::Display for ParseError {
+impl fmt::Display for SyntaxError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::ScanError(s) => {
@@ -63,13 +66,14 @@ impl fmt::Display for ParseError {
                 write!(
                     f,
                     "[line {}] Error: Attempting to assign to {}.",
-                    line, match assignee {
-                        Expr::Binary(_,_,_) => "a binary operation",
+                    line,
+                    match assignee {
+                        Expr::Binary(_, _, _) => "a binary operation",
                         Expr::Grouping(_) => "parentheses",
-                        Expr::Unary(_,_) => "a unary operation",
-                        Expr::Literal(_)=> "a literal value",
+                        Expr::Unary(_, _) => "a unary operation",
+                        Expr::Literal(_) => "a literal value",
                         Expr::Variable(_) => "a variable",
-                        Expr::Assign(_, _) => "a assignment"
+                        Expr::Assign(_, _) => "a assignment",
                     }
                 )
             }
@@ -77,11 +81,11 @@ impl fmt::Display for ParseError {
     }
 }
 
-impl fmt::Display for EvalError {
+impl fmt::Display for RuntimeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            EvalError::TypeError(line, s) => write!(f, "[line {}] Error: {}", line, s),
-            EvalError::NameError(line, s) => {
+            RuntimeError::TypeError(line, s) => write!(f, "[line {}] Error: {}", line, s),
+            RuntimeError::NameError(line, s) => {
                 write!(f, "[line {}] Error: Variable '{}' is not defined.", line, s)
             }
         }

@@ -3,7 +3,7 @@ use std::{iter::Peekable, vec};
 use crate::{
     ast::{expr::Expr, stmt::Stmt},
     core::{
-        errors::ParseError,
+        errors::SyntaxError,
         literal::Literal,
         token::{Token, TokenType},
     },
@@ -29,11 +29,14 @@ use crate::{
 // primary        → NUMBER | STRING | "true" | "false" | "nil"
 //                | "(" expression ")" | IDENTIFIER;
 
+/// An iterator over the statements in the code.
 pub struct Parser<'a> {
+    /// An iterator over the tokens in the code.
     tokens: Peekable<Scanner<'a>>,
 }
 
 impl<'a> Parser<'a> {
+    /// Creates a new parser from the given scanner.
     pub fn new(tokens: Scanner<'a>) -> Self {
         Self {
             tokens: tokens.into_iter().peekable(),
@@ -42,7 +45,7 @@ impl<'a> Parser<'a> {
 
     /// Parses the first expression from the list of tokens and advances the
     /// iterator.
-    pub fn parse(&mut self) -> Option<Result<Expr, ParseError>> {
+    pub fn parse(&mut self) -> Option<Result<Expr, SyntaxError>> {
         match &self.tokens.peek() {
             Some(Ok(token)) => {
                 if token.token == TokenType::Eof {
@@ -61,33 +64,38 @@ impl<'a> Parser<'a> {
     /// Advances to the next token to parse. If there are no more tokens to parse,
     /// An `UnexpectedEOF` error is returned, because `advance()` is only called when
     /// the grammar expects another function
-    fn advance(&mut self) -> Result<Token, ParseError> {
+    fn advance(&mut self) -> Result<Token, SyntaxError> {
         match self.tokens.next() {
             Some(Ok(t)) => Ok(t),
-            Some(Err(e)) => Err(ParseError::ScanError(e)),
-            None => Err(ParseError::UnexpectedEOF),
+            Some(Err(e)) => Err(SyntaxError::ScanError(e)),
+            None => Err(SyntaxError::UnexpectedEOF),
         }
     }
 
-    fn peek(&mut self) -> Result<&Token, ParseError> {
+    /// Peeks at the next token to parse. If there are no more tokens to parse,
+    /// An `UnexpectedEOF` error is returned, because `peek()` is only called when
+    /// the grammar expects another function
+    fn peek(&mut self) -> Result<&Token, SyntaxError> {
         match self.tokens.peek() {
             Some(Ok(t)) => Ok(t),
-            Some(Err(e)) => Err(ParseError::ScanError(e.to_owned())),
-            None => Err(ParseError::UnexpectedEOF),
+            Some(Err(e)) => Err(SyntaxError::ScanError(e.to_owned())),
+            None => Err(SyntaxError::UnexpectedEOF),
         }
     }
 
-    fn consume(&mut self, tokens: &Vec<TokenType>) -> Result<Token, ParseError> {
+    /// Advances to the next token to parse if the next token is in `tokens`. If
+    /// the token is not in `tokens`, an `SyntaxError::ExpectedChar` error is returned.
+    fn consume(&mut self, tokens: &Vec<TokenType>) -> Result<Token, SyntaxError> {
         let next_token = match self.tokens.peek() {
             Some(Ok(t)) => t,
-            Some(Err(e)) => return Err(ParseError::ScanError(e.to_owned())),
-            None => return Err(ParseError::UnexpectedEOF),
+            Some(Err(e)) => return Err(SyntaxError::ScanError(e.to_owned())),
+            None => return Err(SyntaxError::UnexpectedEOF),
         };
 
         if tokens.contains(&next_token.token) {
             self.advance()
         } else {
-            Err(ParseError::ExpectedChar(
+            Err(SyntaxError::ExpectedChar(
                 next_token.line,
                 next_token.lexeme.to_owned(),
                 format!("{:?}", tokens),
@@ -95,13 +103,16 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Synchronizes the parser by discarding tokens until it finds a token that
+    /// highly represents the start of a new statement. This is used to recover from
+    /// errors.
     fn synchronize(&mut self) {
         // Discard the value, since we know its going to be an error
-
+        self.advance().ok();
         loop {
             let cur_token = match self.advance() {
                 Ok(t) => t.token,
-                Err(ParseError::UnexpectedEOF) => return,
+                Err(SyntaxError::UnexpectedEOF) => return,
                 Err(_) => TokenType::Nil, // Anything that doesn't match below should work
             };
 
@@ -111,7 +122,7 @@ impl<'a> Parser<'a> {
 
             let next_token = match self.peek() {
                 Ok(t) => &t.token,
-                Err(ParseError::UnexpectedEOF) => return,
+                Err(SyntaxError::UnexpectedEOF) => return,
                 Err(_) => &TokenType::Nil,
             };
 
@@ -128,7 +139,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn declaration(&mut self) -> Result<Stmt, ParseError> {
+    fn declaration(&mut self) -> Result<Stmt, SyntaxError> {
         let t = self.peek()?;
 
         match t.token {
@@ -140,7 +151,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn declare_var(&mut self) -> Result<Stmt, ParseError> {
+    fn declare_var(&mut self) -> Result<Stmt, SyntaxError> {
         let identifier_token = self.advance()?;
 
         match identifier_token.token {
@@ -157,7 +168,7 @@ impl<'a> Parser<'a> {
                     ))
                 }
             }
-            _ => Err(ParseError::ExpectedChar(
+            _ => Err(SyntaxError::ExpectedChar(
                 identifier_token.line,
                 identifier_token.lexeme.to_string(),
                 "IDENTIFIER".to_string(),
@@ -165,7 +176,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn statement(&mut self) -> Result<Stmt, ParseError> {
+    fn statement(&mut self) -> Result<Stmt, SyntaxError> {
         let t = self.peek()?;
 
         match t.token {
@@ -181,20 +192,20 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn print_stmt(&mut self) -> Result<Stmt, ParseError> {
+    fn print_stmt(&mut self) -> Result<Stmt, SyntaxError> {
         let print_expr = self.expression()?;
         self.consume(&vec![TokenType::Semicolon])?;
         Ok(Stmt::Print(print_expr))
     }
 
-    fn block(&mut self) -> Result<Stmt, ParseError> {
+    fn block(&mut self) -> Result<Stmt, SyntaxError> {
         let mut statements = vec![];
 
         loop {
             let token = self.peek()?;
             match token.token {
                 TokenType::Eof => {
-                    return Err(ParseError::ExpectedChar(
+                    return Err(SyntaxError::ExpectedChar(
                         token.line,
                         "EOF".to_string(),
                         format!("{}", TokenType::Semicolon),
@@ -209,18 +220,17 @@ impl<'a> Parser<'a> {
         Ok(Stmt::Block(statements))
     }
 
-    /// Basically expression, but consume the semicolon
-    fn expression_stmt(&mut self) -> Result<Stmt, ParseError> {
+    fn expression_stmt(&mut self) -> Result<Stmt, SyntaxError> {
         let expr = self.expression()?;
         self.consume(&vec![TokenType::Semicolon])?;
         Ok(Stmt::Expr(expr))
     }
 
-    fn expression(&mut self) -> Result<Expr, ParseError> {
+    fn expression(&mut self) -> Result<Expr, SyntaxError> {
         self.assignment()
     }
 
-    fn assignment(&mut self) -> Result<Expr, ParseError> {
+    fn assignment(&mut self) -> Result<Expr, SyntaxError> {
         let expr = self.equality()?;
 
         let t = self.peek()?;
@@ -232,14 +242,14 @@ impl<'a> Parser<'a> {
 
                 match expr {
                     Expr::Variable(id) => Ok(Expr::Assign(id, Box::new(value))),
-                    a => Err(ParseError::InvalidAssignment(actual.line, a)),
+                    a => Err(SyntaxError::InvalidAssignment(actual.line, a)),
                 }
             }
             _ => Ok(expr),
         }
     }
 
-    fn equality(&mut self) -> Result<Expr, ParseError> {
+    fn equality(&mut self) -> Result<Expr, SyntaxError> {
         let mut expr = self.comparison()?;
 
         loop {
@@ -258,7 +268,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn comparison(&mut self) -> Result<Expr, ParseError> {
+    fn comparison(&mut self) -> Result<Expr, SyntaxError> {
         let mut expr = self.term()?;
 
         loop {
@@ -280,7 +290,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn term(&mut self) -> Result<Expr, ParseError> {
+    fn term(&mut self) -> Result<Expr, SyntaxError> {
         let mut expr = self.factor()?;
 
         loop {
@@ -299,7 +309,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn factor(&mut self) -> Result<Expr, ParseError> {
+    fn factor(&mut self) -> Result<Expr, SyntaxError> {
         let mut expr = self.unary()?;
 
         loop {
@@ -318,7 +328,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn unary(&mut self) -> Result<Expr, ParseError> {
+    fn unary(&mut self) -> Result<Expr, SyntaxError> {
         let t = self.peek()?;
 
         match t.token {
@@ -331,7 +341,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn primary(&mut self) -> Result<Expr, ParseError> {
+    fn primary(&mut self) -> Result<Expr, SyntaxError> {
         let t = self.advance()?;
 
         let expr = match t.token {
@@ -346,7 +356,7 @@ impl<'a> Parser<'a> {
                 self.consume(&vec![TokenType::RightParen])?;
                 Expr::Grouping(Box::new(expr))
             }
-            _ => return Err(ParseError::ExpectedExpression(t.line, t.lexeme)),
+            _ => return Err(SyntaxError::ExpectedExpression(t.line, t.lexeme)),
         };
 
         Ok(expr)
@@ -354,7 +364,7 @@ impl<'a> Parser<'a> {
 }
 
 impl Iterator for Parser<'_> {
-    type Item = Result<Stmt, ParseError>;
+    type Item = Result<Stmt, SyntaxError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         match &self.tokens.peek() {

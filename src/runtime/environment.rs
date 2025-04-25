@@ -2,12 +2,16 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::core::literal::Literal;
 
+/// An environment that holds variables and their values.
 pub struct Environment {
+    /// The enclosing environment, if any.
     enclosing: Option<Rc<RefCell<Environment>>>,
+    /// The variables and their values in this environment.
     values: HashMap<String, Literal>,
 }
 
 impl Environment {
+    /// Returns a new environment.
     pub fn new() -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(Self {
             enclosing: None,
@@ -15,6 +19,7 @@ impl Environment {
         }))
     }
 
+    /// Returns a new environment that is enclosed within the given environment.
     pub fn new_enclosed(enclosing: &Rc<RefCell<Self>>) -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(Self {
             enclosing: Some(Rc::clone(enclosing)),
@@ -22,14 +27,17 @@ impl Environment {
         }))
     }
 
+    /// Returns the enclosing environment, if any.
     pub fn get_enclosing(&self) -> Option<Rc<RefCell<Environment>>> {
         self.enclosing.as_ref().map(Rc::clone)
     }
 
+    /// Defines a variable in the environment.
     pub fn define(&mut self, id: &String, value: Literal) {
         self.values.insert(id.to_owned(), value);
     }
 
+    /// Gets the value of a variable from the environment, or any enclosing environment.
     pub fn get(&self, id: &String) -> Option<Literal> {
         if let Some(value) = self.values.get(id) {
             return Some(value.clone());
@@ -42,6 +50,8 @@ impl Environment {
         None
     }
 
+    /// Assigns a value to a variable in the environment, or any enclosing environment.
+    /// If no variable is found, it returns an error.
     pub fn assign(&mut self, id: &String, value: Literal) -> Result<(), ()> {
         if self.values.contains_key(id) {
             self.values.insert(id.to_owned(), value);

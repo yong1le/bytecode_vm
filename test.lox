@@ -1,6 +1,1 @@
-var hello = "world";
-
-{
-   hello = "hello";
-}
-print hello;
+23. /.

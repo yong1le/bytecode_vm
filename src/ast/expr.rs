@@ -2,6 +2,7 @@ use core::fmt;
 
 use crate::core::{literal::Literal, token::Token};
 
+/// Enum to represent different types of expressions in the AST.
 #[derive(Debug, Clone)]
 pub enum Expr {
     Literal(Literal),                    // NUMBER, STRING, true, false, nil
@@ -12,6 +13,7 @@ pub enum Expr {
     Assign(Token, Box<Expr>),
 }
 
+/// A struct that visits `Expr`
 pub trait ExprVisitor<T> {
     fn visit_literal(&mut self, literal: &Literal) -> T;
     fn visit_unary(&mut self, operator: &Token, expr: &Expr) -> T;
