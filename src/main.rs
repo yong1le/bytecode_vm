@@ -112,8 +112,8 @@ fn main() {
                     }
                 },
                 Err(e) => {
-                    exit_code = 65;
                     eprintln!("{e}");
+                    exit(65);
                 }
             });
 
