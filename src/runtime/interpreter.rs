@@ -50,10 +50,7 @@ impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
 
     fn visit_unary(&mut self, operator: &Token, expr: &Expr) -> Result<Literal, RuntimeError> {
         match (&operator.token, self.evaluate(expr)?) {
-            (TokenType::Bang, Literal::Boolean(b)) => Ok(Literal::Boolean(!b)),
-            (TokenType::Bang, Literal::Number(n)) => Ok(Literal::Boolean(n == 0.0)),
-            (TokenType::Bang, Literal::String(s)) => Ok(Literal::Boolean(s.is_empty())),
-            (TokenType::Bang, Literal::Nil) => Ok(Literal::Boolean(true)),
+            (TokenType::Bang, literal) => Ok(Literal::Boolean(!literal.is_truthy())),
             (TokenType::Minus, Literal::Number(num)) => Ok(Literal::Number(-num)),
             (TokenType::Minus, _) => Err(RuntimeError::TypeError(
                 operator.line,
@@ -195,5 +192,23 @@ impl StmtVisitor<Result<(), RuntimeError>> for Interpreter {
         self.set_env(old_env);
 
         Ok(())
+    }
+
+    fn visit_if(
+        &mut self,
+        condition: &Expr,
+        if_block: &Stmt,
+        else_block: &Option<Box<Stmt>>,
+    ) -> Result<(), RuntimeError> {
+        let condition_bool = self.evaluate(condition)?.is_truthy();
+
+        if condition_bool {
+            self.interpret(if_block)
+        } else {
+            match else_block {
+                Some(stmt) => self.interpret(stmt),
+                None => Ok(()),
+            }
+        }
     }
 }

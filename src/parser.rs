@@ -188,6 +188,10 @@ impl<'a> Parser<'a> {
                 self.advance()?;
                 self.block()
             }
+            TokenType::If => {
+                self.advance()?;
+                self.if_stmt()
+            }
             _ => self.expression_stmt(),
         }
     }
@@ -218,6 +222,26 @@ impl<'a> Parser<'a> {
 
         self.consume(&vec![TokenType::RightBrace])?;
         Ok(Stmt::Block(statements))
+    }
+
+    fn if_stmt(&mut self) -> Result<Stmt, SyntaxError> {
+        // Match the pattern (<condition>)
+        self.consume(&vec![TokenType::LeftParen])?;
+        let condition = self.expression()?;
+        self.consume(&vec![TokenType::RightParen])?;
+
+        let if_block = self.statement()?;
+
+        if self.consume(&vec![TokenType::Else]).is_ok() {
+            let else_block = self.statement()?;
+            Ok(Stmt::If(
+                condition,
+                Box::new(if_block),
+                Some(Box::new(else_block)),
+            ))
+        } else {
+            Ok(Stmt::If(condition, Box::new(if_block), None))
+        }
     }
 
     fn expression_stmt(&mut self) -> Result<Stmt, SyntaxError> {
