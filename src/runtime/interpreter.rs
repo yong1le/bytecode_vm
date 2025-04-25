@@ -231,4 +231,12 @@ impl StmtVisitor<Result<(), RuntimeError>> for Interpreter {
             }
         }
     }
+
+    fn visit_while(&mut self, condition: &Expr, while_block: &Stmt) -> Result<(), RuntimeError> {
+        while self.evaluate(condition)?.is_truthy() {
+            self.interpret(while_block)?;
+        }
+
+        Ok(())
+    }
 }

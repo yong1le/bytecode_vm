@@ -13,10 +13,12 @@ use crate::{
 // program        →  declaration* EOF;
 // declaration    -> varDecl | statement;
 // varDecl        -> "var" IDENTIFIER ( "=" )? ";";
-// statement      → exprStmt | printStmt | block ;
+// statement      → exprStmt | printStmt | if | for | while | block ;
 // block          -> "{" declaration* "}"
 // exprStmt       → expression ";" '
 // printStmt      → "print" expression ";" ;
+// if             -> "if (" expression ")" statement ( "else" statement )?
+// while            -> "while (" expression ")" statement
 
 // expression     → assignment ;
 // assignment     -> IDENTIFIER "=" assignment | logic_or;
@@ -87,20 +89,20 @@ impl<'a> Parser<'a> {
 
     /// Advances to the next token to parse if the next token is in `tokens`. If
     /// the token is not in `tokens`, an `SyntaxError::ExpectedChar` error is returned.
-    fn consume(&mut self, tokens: &Vec<TokenType>) -> Result<Token, SyntaxError> {
+    fn consume(&mut self, token: TokenType) -> Result<Token, SyntaxError> {
         let next_token = match self.tokens.peek() {
             Some(Ok(t)) => t,
             Some(Err(e)) => return Err(SyntaxError::ScanError(e.to_owned())),
             None => return Err(SyntaxError::UnexpectedEOF),
         };
 
-        if tokens.contains(&next_token.token) {
+        if token == next_token.token {
             self.advance()
         } else {
             Err(SyntaxError::ExpectedChar(
                 next_token.line,
                 next_token.lexeme.to_owned(),
-                format!("{:?}", tokens),
+                format!("{}", token),
             ))
         }
     }
@@ -158,12 +160,12 @@ impl<'a> Parser<'a> {
 
         match identifier_token.token {
             TokenType::Identifier => {
-                if let Ok(_equals) = self.consume(&vec![TokenType::Equal]) {
+                if let Ok(_equals) = self.consume(TokenType::Equal) {
                     let initializer = self.expression()?;
-                    self.consume(&vec![TokenType::Semicolon])?;
+                    self.consume(TokenType::Semicolon)?;
                     Ok(Stmt::DeclareVar(identifier_token, initializer))
                 } else {
-                    self.consume(&vec![TokenType::Semicolon])?;
+                    self.consume(TokenType::Semicolon)?;
                     Ok(Stmt::DeclareVar(
                         identifier_token,
                         Expr::Literal(Literal::Nil),
@@ -194,13 +196,17 @@ impl<'a> Parser<'a> {
                 self.advance()?;
                 self.if_stmt()
             }
+            TokenType::While => {
+                self.advance()?;
+                self.while_stmt()
+            }
             _ => self.expression_stmt(),
         }
     }
 
     fn print_stmt(&mut self) -> Result<Stmt, SyntaxError> {
         let print_expr = self.expression()?;
-        self.consume(&vec![TokenType::Semicolon])?;
+        self.consume(TokenType::Semicolon)?;
         Ok(Stmt::Print(print_expr))
     }
 
@@ -222,19 +228,19 @@ impl<'a> Parser<'a> {
             }
         }
 
-        self.consume(&vec![TokenType::RightBrace])?;
+        self.consume(TokenType::RightBrace)?;
         Ok(Stmt::Block(statements))
     }
 
     fn if_stmt(&mut self) -> Result<Stmt, SyntaxError> {
         // Match the pattern (<condition>)
-        self.consume(&vec![TokenType::LeftParen])?;
+        self.consume(TokenType::LeftParen)?;
         let condition = self.expression()?;
-        self.consume(&vec![TokenType::RightParen])?;
+        self.consume(TokenType::RightParen)?;
 
         let if_block = self.statement()?;
 
-        if self.consume(&vec![TokenType::Else]).is_ok() {
+        if self.consume(TokenType::Else).is_ok() {
             let else_block = self.statement()?;
             Ok(Stmt::If(
                 condition,
@@ -246,9 +252,19 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn while_stmt(&mut self) -> Result<Stmt, SyntaxError> {
+        self.consume(TokenType::LeftParen)?;
+        let condition = self.expression()?;
+        self.consume(TokenType::RightParen)?;
+
+        let while_block = self.statement()?;
+
+        Ok(Stmt::While(condition, Box::new(while_block)))
+    }
+
     fn expression_stmt(&mut self) -> Result<Stmt, SyntaxError> {
         let expr = self.expression()?;
-        self.consume(&vec![TokenType::Semicolon])?;
+        self.consume(TokenType::Semicolon)?;
         Ok(Stmt::Expr(expr))
     }
 
@@ -417,7 +433,7 @@ impl<'a> Parser<'a> {
             TokenType::Number => Expr::Literal(t.literal.to_owned()),
             TokenType::LeftParen => {
                 let expr = self.expression()?;
-                self.consume(&vec![TokenType::RightParen])?;
+                self.consume(TokenType::RightParen)?;
                 Expr::Grouping(Box::new(expr))
             }
             _ => return Err(SyntaxError::ExpectedExpression(t.line, t.lexeme)),

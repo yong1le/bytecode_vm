@@ -1,7 +1,5 @@
-if (false and "bad") print "foo";
-if (nil and "bad") print "foo";
-
-if (true and "hello") print "hello";
-if (97 and "baz") print "baz";
-if ("baz" and "baz") print "baz";
-if ("" and "bar") print "bar";
+var i = 0;
+while (i < 10) {
+    print i;
+    i = i + 1;
+  }
