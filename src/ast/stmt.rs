@@ -1,6 +1,6 @@
 use core::fmt;
 
-use crate::token::Token;
+use crate::core::token::Token;
 
 use super::expr::Expr;
 
@@ -16,7 +16,7 @@ pub trait StmtVisitor<T> {
     fn visit_print(&mut self, stmt: &Expr) -> T;
     fn visit_expr(&mut self, expr: &Expr) -> T;
     fn visit_declare_var(&mut self, id: &Token, expr: &Expr) -> T;
-    fn visit_block(&mut self, statements: &Vec<Stmt>) -> T;
+    fn visit_block(&mut self, statements: &[Stmt]) -> T;
 }
 
 impl Stmt {

@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use crate::token::Literal;
+use crate::core::literal::Literal;
 
 pub struct Environment {
     enclosing: Option<Rc<RefCell<Environment>>>,
@@ -15,7 +15,7 @@ impl Environment {
         }))
     }
 
-    pub fn block(enclosing: &Rc<RefCell<Self>>) -> Rc<RefCell<Self>> {
+    pub fn new_enclosed(enclosing: &Rc<RefCell<Self>>) -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(Self {
             enclosing: Some(Rc::clone(enclosing)),
             values: HashMap::new(),
@@ -23,10 +23,7 @@ impl Environment {
     }
 
     pub fn get_enclosing(&self) -> Option<Rc<RefCell<Environment>>> {
-        match &self.enclosing {
-            None => None,
-            Some(e) => Some(Rc::clone(e)),
-        }
+        self.enclosing.as_ref().map(Rc::clone)
     }
 
     pub fn define(&mut self, id: &String, value: Literal) {
@@ -51,7 +48,7 @@ impl Environment {
             Ok(())
         } else if let Some(enclosing) = &self.enclosing {
             return enclosing.borrow_mut().assign(id, value);
-        }else {
+        } else {
             Err(())
         }
     }

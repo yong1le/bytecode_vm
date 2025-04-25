@@ -1,7 +1,6 @@
-use std::{
-    borrow::Cow,
-    fmt::{self},
-};
+use std::fmt::{self};
+
+use super::literal::Literal;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
@@ -46,14 +45,6 @@ pub enum TokenType {
     While,
 
     Eof,
-}
-#[derive(Debug, Clone)]
-pub enum Literal {
-    String(Cow<'static, str>),
-    Number(f64),
-    Boolean(bool),
-    Nil,
-    None,
 }
 
 #[derive(Debug, Clone)]
@@ -108,50 +99,16 @@ impl fmt::Display for TokenType {
                 TokenType::True => "TRUE",
                 TokenType::Var => "VAR",
                 TokenType::While => "WHILE",
-                TokenType::Eof => "EOF"
+                TokenType::Eof => "EOF",
             }
         )
-    }
-}
-
-impl fmt::Display for Literal {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Literal::String(a) => a.to_string(),
-                Literal::Number(a) => {
-                    if a.fract() == 0.0 {
-                        format!("{:.1}", a)
-                    } else {
-                        format!("{}", a)
-                    }
-                }
-                Literal::Boolean(a) => a.to_string(),
-                Literal::Nil => "nil".to_string(),
-                Literal::None => "null".to_string(),
-            }
-        )
-    }
-}
-
-impl Literal {
-    /// For printing to the terminal, different rules from scan phase
-    pub fn stringify(&self) -> String {
-        match self {
-            Literal::Number(n) => {
-                format!("{n}")
-            }
-            _ => format!("{self}"),
-        }
     }
 }
 
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.token {
-            TokenType::Nil => write!(f, "NIL nil null"),
+        match self.literal {
+            Literal::Nil => write!(f, "{} {} null", self.token, self.lexeme),
             _ => write!(f, "{} {} {}", self.token, self.lexeme, self.literal),
         }
     }

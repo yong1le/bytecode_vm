@@ -2,9 +2,12 @@ use std::{iter::Peekable, vec};
 
 use crate::{
     ast::{expr::Expr, stmt::Stmt},
-    errors::ParseError,
+    core::{
+        errors::ParseError,
+        literal::Literal,
+        token::{Token, TokenType},
+    },
     scanner::Scanner,
-    token::{Literal, Token, TokenType},
 };
 
 // program        →  declaration* EOF;
@@ -41,10 +44,11 @@ impl<'a> Parser<'a> {
     /// iterator.
     pub fn parse(&mut self) -> Option<Result<Expr, ParseError>> {
         match &self.tokens.peek() {
-            Some(Ok(token)) => match token.token {
-                TokenType::Eof => return None,
-                _ => (),
-            },
+            Some(Ok(token)) => {
+                if token.token == TokenType::Eof {
+                    return None;
+                }
+            }
             None => return None,
             _ => (),
         }
@@ -193,7 +197,7 @@ impl<'a> Parser<'a> {
                     return Err(ParseError::ExpectedChar(
                         token.line,
                         "EOF".to_string(),
-                        format!("{}", TokenType::Semicolon)
+                        format!("{}", TokenType::Semicolon),
                     ))
                 }
                 TokenType::RightBrace => break,
@@ -251,7 +255,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        return Ok(expr);
+        Ok(expr)
     }
 
     fn comparison(&mut self) -> Result<Expr, ParseError> {
@@ -273,7 +277,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        return Ok(expr);
+        Ok(expr)
     }
 
     fn term(&mut self) -> Result<Expr, ParseError> {
@@ -292,7 +296,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        return Ok(expr);
+        Ok(expr)
     }
 
     fn factor(&mut self) -> Result<Expr, ParseError> {
@@ -311,7 +315,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        return Ok(expr);
+        Ok(expr)
     }
 
     fn unary(&mut self) -> Result<Expr, ParseError> {
@@ -349,15 +353,16 @@ impl<'a> Parser<'a> {
     }
 }
 
-impl<'a> Iterator for Parser<'a> {
+impl Iterator for Parser<'_> {
     type Item = Result<Stmt, ParseError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         match &self.tokens.peek() {
-            Some(Ok(token)) => match token.token {
-                TokenType::Eof => return None,
-                _ => (),
-            },
+            Some(Ok(token)) => {
+                if token.token == TokenType::Eof {
+                    return None;
+                }
+            }
             None => return None,
             _ => (),
         }

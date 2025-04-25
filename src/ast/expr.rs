@@ -1,6 +1,6 @@
 use core::fmt;
 
-use crate::token::{Literal, Token};
+use crate::core::{literal::Literal, token::Token};
 
 #[derive(Debug, Clone)]
 pub enum Expr {

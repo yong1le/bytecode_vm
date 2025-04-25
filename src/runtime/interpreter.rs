@@ -5,10 +5,14 @@ use crate::{
         expr::{Expr, ExprVisitor},
         stmt::{Stmt, StmtVisitor},
     },
-    environment::Environment,
-    errors::EvalError,
-    token::{Literal, Token, TokenType},
+    core::{
+        errors::EvalError,
+        literal::Literal,
+        token::{Token, TokenType},
+    },
 };
+
+use super::environment::Environment;
 
 pub struct Interpreter {
     env: Rc<RefCell<Environment>>,
@@ -172,8 +176,8 @@ impl StmtVisitor<Result<(), EvalError>> for Interpreter {
         }
     }
 
-    fn visit_block(&mut self, statements: &Vec<Stmt>) -> Result<(), EvalError> {
-        let new_env = Environment::block(&self.env);
+    fn visit_block(&mut self, statements: &[Stmt]) -> Result<(), EvalError> {
+        let new_env = Environment::new_enclosed(&self.env);
         self.set_env(new_env);
         for s in statements {
             self.interpret(s)?;

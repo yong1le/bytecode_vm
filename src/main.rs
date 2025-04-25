@@ -1,23 +1,21 @@
 mod ast;
-mod errors;
-mod interpreter;
+mod core;
 mod parser;
+mod runtime;
 mod scanner;
-mod token;
-mod environment;
 
 use std::env;
 use std::fs;
-use std::io::{self, Write};
 use std::process::exit;
 
 use interpreter::Interpreter;
 use parser::Parser;
+use runtime::interpreter;
 use scanner::Scanner;
 
 fn read_file(filename: &String) -> String {
     fs::read_to_string(filename).unwrap_or_else(|_| {
-        writeln!(io::stderr(), "Failed to read file {}", filename).unwrap();
+        eprintln!("Failed to read file {}", filename);
         String::new()
     })
 }
@@ -25,20 +23,17 @@ fn read_file(filename: &String) -> String {
 fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() < 3 {
-        writeln!(
-            io::stderr(),
+        eprintln!(
             "Usage: {} [tokenize|parse|evaluate|run] <filename>",
             args[0]
         )
-        .unwrap();
-        return;
     }
 
     let command = &args[1];
     let filename = &args[2];
 
     // You can use print statements as follows for debugging, they'll be visible when running tests.
-    writeln!(io::stderr(), "Logs from your program will appear here!").unwrap();
+    eprintln!("Logs from your program will appear here!");
 
     let file_contents = read_file(filename);
 
@@ -53,7 +48,7 @@ fn main() {
                     }
                     Err(e) => {
                         exit_code = 65;
-                        writeln!(io::stderr(), "{e}").unwrap();
+                        eprintln!("{e}");
                     }
                 };
             }
@@ -71,7 +66,7 @@ fn main() {
                     }
                     Err(e) => {
                         exit_code = 65;
-                        writeln!(io::stderr(), "{e}").unwrap();
+                        eprintln!("{e}");
                     }
                 }
             }
@@ -91,12 +86,12 @@ fn main() {
                         }
                         Err(e) => {
                             exit_code = 70;
-                            writeln!(io::stderr(), "{e}").unwrap();
+                            eprintln!("{e}");
                         }
                     },
                     Err(e) => {
                         exit_code = 65;
-                        writeln!(io::stderr(), "{e}").unwrap();
+                        eprintln!("{e}");
                     }
                 }
             }
@@ -112,21 +107,20 @@ fn main() {
                 Ok(s) => match interpreter.interpret(&s) {
                     Ok(()) => (),
                     Err(e) => {
-                        writeln!(io::stderr(), "{e}").unwrap();
+                        eprintln!("{e}");
                         exit(70);
                     }
                 },
                 Err(e) => {
                     exit_code = 65;
-                    writeln!(io::stderr(), "{e}").unwrap()
+                    eprintln!("{e}");
                 }
             });
 
             exit(exit_code);
         }
         _ => {
-            writeln!(io::stderr(), "Unknown command: {}", command).unwrap();
-            return;
+            eprintln!("Unknown command: {}", command)
         }
     }
 }
