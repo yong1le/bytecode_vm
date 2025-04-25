@@ -43,7 +43,7 @@ impl Literal {
 
     pub fn is_truthy(&self) -> bool {
         match self {
-            Literal::String(str) => str.is_empty(),
+            Literal::String(str) => !str.is_empty(),
             Literal::Number(num) => num != &0.0,
             Literal::Boolean(b) => b.to_owned(),
             Literal::Nil => false,

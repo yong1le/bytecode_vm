@@ -145,6 +145,26 @@ impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
             Err(e) => Err(e),
         }
     }
+
+    fn visit_and(&mut self, left: &Expr, right: &Expr) -> Result<Literal, RuntimeError> {
+        let left_eval = self.evaluate(left)?;
+
+        if left_eval.is_truthy() {
+            self.evaluate(right)
+        } else {
+            Ok(left_eval)
+        }
+    }
+
+    fn visit_or(&mut self, left: &Expr, right: &Expr) -> Result<Literal, RuntimeError> {
+        let left_eval = self.evaluate(left)?;
+
+        if left_eval.is_truthy() {
+            Ok(left_eval)
+        } else {
+            self.evaluate(right)
+        }
+    }
 }
 
 impl StmtVisitor<Result<(), RuntimeError>> for Interpreter {

@@ -19,7 +19,9 @@ use crate::{
 // printStmt      → "print" expression ";" ;
 
 // expression     → assignment ;
-// assignment     -> IDENTIFIER "=" assignment | equality;
+// assignment     -> IDENTIFIER "=" assignment | logic_or;
+// logic_or       → logic_and ( "or" logic_and )* ;
+// logic_and      → equality ( "and" equality )* ;
 // equality       → comparison ( ( "!=" | "==" ) comparison )* ;
 // comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 // term           → factor ( ( "-" | "+" ) factor )* ;
@@ -255,7 +257,7 @@ impl<'a> Parser<'a> {
     }
 
     fn assignment(&mut self) -> Result<Expr, SyntaxError> {
-        let expr = self.equality()?;
+        let expr = self.logic_or()?;
 
         let t = self.peek()?;
 
@@ -271,6 +273,44 @@ impl<'a> Parser<'a> {
             }
             _ => Ok(expr),
         }
+    }
+
+    fn logic_or(&mut self) -> Result<Expr, SyntaxError> {
+        let mut expr = self.logic_and()?;
+
+        loop {
+            let t = self.peek()?;
+
+            match t.token {
+                TokenType::Or => {
+                    self.advance()?;
+                    let right = self.logic_and()?;
+                    expr = Expr::Or(Box::new(expr), Box::new(right))
+                }
+                _ => break,
+            }
+        }
+
+        Ok(expr)
+    }
+
+    fn logic_and(&mut self) -> Result<Expr, SyntaxError> {
+        let mut expr = self.equality()?;
+
+        loop {
+            let t = self.peek()?;
+
+            match t.token {
+                TokenType::And => {
+                    self.advance()?;
+                    let right = self.equality()?;
+                    expr = Expr::And(Box::new(expr), Box::new(right))
+                }
+                _ => break,
+            }
+        }
+
+        Ok(expr)
     }
 
     fn equality(&mut self) -> Result<Expr, SyntaxError> {

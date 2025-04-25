@@ -68,7 +68,8 @@ impl fmt::Display for SyntaxError {
                     "[line {}] Error: Attempting to assign to {}.",
                     line,
                     match assignee {
-                        Expr::Binary(_, _, _) => "a binary operation",
+                        Expr::Binary(_, _, _) | Expr::And(_, _) | Expr::Or(_, _) =>
+                            "a binary operation",
                         Expr::Grouping(_) => "parentheses",
                         Expr::Unary(_, _) => "a unary operation",
                         Expr::Literal(_) => "a literal value",

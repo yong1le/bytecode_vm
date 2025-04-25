@@ -11,6 +11,8 @@ pub enum Expr {
     Grouping(Box<Expr>),                 // (, )
     Variable(Token),
     Assign(Token, Box<Expr>),
+    And(Box<Expr>, Box<Expr>),
+    Or(Box<Expr>, Box<Expr>),
 }
 
 /// A struct that visits `Expr`
@@ -21,6 +23,8 @@ pub trait ExprVisitor<T> {
     fn visit_grouping(&mut self, expr: &Expr) -> T;
     fn visit_variable(&mut self, id: &Token) -> T;
     fn visit_assignment(&mut self, id: &Token, assignment: &Expr) -> T;
+    fn visit_and(&mut self, left: &Expr, right: &Expr) -> T;
+    fn visit_or(&mut self, left: &Expr, right: &Expr) -> T;
 }
 
 impl Expr {
@@ -32,6 +36,8 @@ impl Expr {
             Expr::Grouping(expr) => visitor.visit_grouping(expr),
             Expr::Variable(id) => visitor.visit_variable(id),
             Expr::Assign(id, assignment) => visitor.visit_assignment(id, assignment),
+            Expr::And(left, right) => visitor.visit_and(left, right),
+            Expr::Or(left, right) => visitor.visit_or(left, right),
         }
     }
 }
@@ -45,6 +51,8 @@ impl fmt::Display for Expr {
             Expr::Grouping(e) => write!(f, "(group {})", e),
             Expr::Variable(id) => write!(f, "({})", id.lexeme),
             Expr::Assign(id, expr) => write!(f, "({} ({}))", id.lexeme, expr),
+            Expr::And(e1, e2) => write!(f, "(and {} {})", e1, e2),
+            Expr::Or(e1, e2) => write!(f, "(or {} {})", e1, e2),
         }
     }
 }

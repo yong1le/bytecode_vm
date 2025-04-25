@@ -1,8 +1,1 @@
-if (false) {
-    print "we are the champions";
-} else if (false) {
-    print "you are no the champion";
-}
-  else {
-      print "you are dumb";
-    }
+print "hi" or "else";

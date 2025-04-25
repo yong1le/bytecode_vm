@@ -42,7 +42,16 @@ impl fmt::Display for Stmt {
             Stmt::Print(e) => write!(f, "(print {})", e),
             Stmt::DeclareVar(id, expr) => write!(f, "(var {} ({}))", id.lexeme, expr),
             Stmt::Block(stmts) => write!(f, "(block {:?})", stmts),
-            Stmt::If(expr, stmt, stmt1) => todo!(),
+            Stmt::If(expr, if_block, else_block) => write!(
+                f,
+                "(if ({}) ({}) ({})",
+                expr,
+                if_block,
+                match else_block {
+                    Some(s) => format!("{}", s),
+                    None => "null".to_string(),
+                }
+            ),
         }
     }
 }
