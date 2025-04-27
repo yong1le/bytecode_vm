@@ -33,7 +33,7 @@ impl<'a> Scanner<'a> {
     fn tokenize_string(&mut self) -> Result<(TokenType, Literal, String), ScanError> {
         let mut lexeme = String::from('"');
         loop {
-            match &self.peek() {
+            match self.peek() {
                 Some('"') => {
                     lexeme.push('"');
                     self.advance();
@@ -113,7 +113,7 @@ impl<'a> Scanner<'a> {
     ) -> Result<(TokenType, Literal, String), ScanError> {
         let mut lexeme = String::from(init);
 
-        while let Some(&ch) = &self.peek() {
+        while let Some(&ch) = self.peek() {
             if ch.is_alphanumeric() || ch == '_' {
                 lexeme.push(ch);
                 self.advance();
@@ -149,7 +149,7 @@ impl<'a> Scanner<'a> {
 
     /// Skips over all whitespace and comments in the source code.
     fn skip_whitespace(&mut self) {
-        while let Some(&c) = &self.peek() {
+        while let Some(&c) = self.peek() {
             match c {
                 ' ' | '\r' | '\t' => {
                     self.advance();

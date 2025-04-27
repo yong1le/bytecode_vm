@@ -50,7 +50,7 @@ impl<'a> Parser<'a> {
     /// Parses the first expression from the list of tokens and advances the
     /// iterator.
     pub fn parse(&mut self) -> Option<Result<Expr, SyntaxError>> {
-        match &self.tokens.peek() {
+        match self.tokens.peek() {
             Some(Ok(token)) => {
                 if token.token == TokenType::Eof {
                     return None;
@@ -500,7 +500,7 @@ impl Iterator for Parser<'_> {
     type Item = Result<Stmt, SyntaxError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match &self.tokens.peek() {
+        match self.tokens.peek() {
             Some(Ok(token)) => {
                 if token.token == TokenType::Eof {
                     return None;
