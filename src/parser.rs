@@ -11,17 +11,17 @@ use crate::{
 };
 
 // program        →  declaration* EOF;
-// declaration    -> varDecl | statement;
-// varDecl        -> "var" IDENTIFIER ( "=" )? ";";
+// declaration    → varDecl | statement;
+// varDecl        → "var" IDENTIFIER ( "=" )? ";";
 // statement      → exprStmt | printStmt | if | for | while | block ;
-// block          -> "{" declaration* "}"
+// block          → "{" declaration* "}"
 // exprStmt       → expression ";" '
 // printStmt      → "print" expression ";" ;
-// if             -> "if (" expression ")" statement ( "else" statement )?
-// while            -> "while (" expression ")" statement
+// if             → "if (" expression ")" statement ( "else" statement )?
+// while          → "while (" expression ")" statement
 
 // expression     → assignment ;
-// assignment     -> IDENTIFIER "=" assignment | logic_or;
+// assignment     → IDENTIFIER "=" assignment | logic_or;
 // logic_or       → logic_and ( "or" logic_and )* ;
 // logic_and      → equality ( "and" equality )* ;
 // equality       → comparison ( ( "!=" | "==" ) comparison )* ;
@@ -29,7 +29,9 @@ use crate::{
 // term           → factor ( ( "-" | "+" ) factor )* ;
 // factor         → unary ( ( "/" | "*" ) unary )* ;
 // unary          → ( "!" | "-" ) unary
-//                | primary ;
+//                | call ;
+// call           → primary ( "(" arguments? ")" )* ;
+// arguments      → expression ( "," expression )* ;
 // primary        → NUMBER | STRING | "true" | "false" | "nil"
 //                | "(" expression ")" | IDENTIFIER;
 
@@ -470,8 +472,37 @@ impl<'a> Parser<'a> {
                 let expr = self.unary()?;
                 Ok(Expr::Unary(op, Box::new(expr)))
             }
-            _ => self.primary(),
+            _ => self.call(),
         }
+    }
+
+    fn call(&mut self) -> Result<Expr, SyntaxError> {
+        let mut expr = self.primary()?;
+        let mut args = Vec::new();
+
+        if self.consume(TokenType::LeftParen).is_ok() {
+            loop {
+                let t = self.peek()?;
+
+                match t.token {
+                    TokenType::RightParen => {
+                        break;
+                    }
+                    _ => {
+                        args.push(self.expression()?);
+                        if self.consume(TokenType::Comma).is_err() {
+                            break;
+                        }
+                    }
+                }
+            }
+
+            let closing = self.consume(TokenType::RightParen)?;
+
+            expr = Expr::Call(Box::new(expr), args, closing);
+        }
+
+        Ok(expr)
     }
 
     fn primary(&mut self) -> Result<Expr, SyntaxError> {

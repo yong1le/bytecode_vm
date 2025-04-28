@@ -22,7 +22,7 @@ pub enum SyntaxError {
 /// Runtime errors that occur while executing the program.
 #[derive(Debug, Clone)]
 pub enum RuntimeError {
-    TypeError(u32, &'static str),
+    TypeError(u32, String),
     NameError(u32, String),
 }
 
@@ -75,6 +75,7 @@ impl fmt::Display for SyntaxError {
                         Expr::Literal(_) => "a literal value",
                         Expr::Variable(_) => "a variable",
                         Expr::Assign(_, _) => "a assignment",
+                        Expr::Call(_, _, _) => "a function call",
                     }
                 )
             }

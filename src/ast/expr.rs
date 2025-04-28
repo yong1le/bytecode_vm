@@ -13,6 +13,7 @@ pub enum Expr {
     Assign(Token, Box<Expr>),
     And(Box<Expr>, Box<Expr>),
     Or(Box<Expr>, Box<Expr>),
+    Call(Box<Expr>, Vec<Expr>, Token),
 }
 
 /// A struct that visits `Expr`
@@ -25,6 +26,7 @@ pub trait ExprVisitor<T> {
     fn visit_assignment(&mut self, id: &Token, assignment: &Expr) -> T;
     fn visit_and(&mut self, left: &Expr, right: &Expr) -> T;
     fn visit_or(&mut self, left: &Expr, right: &Expr) -> T;
+    fn visit_call(&mut self, callee: &Expr, arguments: &[Expr], closing: &Token) -> T;
 }
 
 impl Expr {
@@ -38,6 +40,9 @@ impl Expr {
             Expr::Assign(id, assignment) => visitor.visit_assignment(id, assignment),
             Expr::And(left, right) => visitor.visit_and(left, right),
             Expr::Or(left, right) => visitor.visit_or(left, right),
+            Expr::Call(callee, arguments, closing) => {
+                visitor.visit_call(callee, arguments, closing)
+            }
         }
     }
 }
@@ -53,6 +58,7 @@ impl fmt::Display for Expr {
             Expr::Assign(id, expr) => write!(f, "({} ({}))", id.lexeme, expr),
             Expr::And(e1, e2) => write!(f, "(and {} {})", e1, e2),
             Expr::Or(e1, e2) => write!(f, "(or {} {})", e1, e2),
+            Expr::Call(callee, arguments, _) => write!(f, "({} ({:?})", callee, arguments),
         }
     }
 }

@@ -6,6 +6,7 @@ use crate::{
         stmt::{Stmt, StmtVisitor},
     },
     core::{
+        callable::Clock,
         errors::RuntimeError,
         literal::Literal,
         token::{Token, TokenType},
@@ -22,9 +23,10 @@ pub struct Interpreter {
 
 impl Interpreter {
     pub fn new() -> Self {
-        Self {
-            env: Environment::new(),
-        }
+        let env = Environment::new();
+        env.borrow_mut()
+            .define(&"clock".to_string(), Literal::Callable(Rc::new(Clock)));
+        Self { env }
     }
 
     /// Evaluates a single expression and returns its result.
@@ -54,7 +56,7 @@ impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
             (TokenType::Minus, Literal::Number(num)) => Ok(Literal::Number(-num)),
             (TokenType::Minus, _) => Err(RuntimeError::TypeError(
                 operator.line,
-                "Operand must be a number.",
+                "Operand must be a number.".to_string(),
             )),
             _ => Ok(Literal::Nil),
         }
@@ -84,7 +86,7 @@ impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
                 TokenType::BangEqual => Ok(Literal::Boolean(n1 != n2)),
                 _ => Err(RuntimeError::TypeError(
                     operator.line,
-                    "Operand not implemented.",
+                    "Operand not implemented.".to_string(),
                 )),
             },
             // +, ==, !=
@@ -94,7 +96,7 @@ impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
                 TokenType::BangEqual => Ok(Literal::Boolean(s1 != s2)),
                 _ => Err(RuntimeError::TypeError(
                     operator.line,
-                    "Operands must be numbers.",
+                    "Operands must be numbers.".to_string(),
                 )),
             },
             (Literal::Boolean(b1), Literal::Boolean(b2)) => match operator.token {
@@ -102,7 +104,7 @@ impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
                 TokenType::BangEqual => Ok(Literal::Boolean(b1 != b2)),
                 _ => Err(RuntimeError::TypeError(
                     operator.line,
-                    "Operands must be numbers.",
+                    "Operands must be numbers.".to_string(),
                 )),
             },
             (Literal::Nil, Literal::Nil) => match operator.token {
@@ -110,7 +112,7 @@ impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
                 TokenType::BangEqual => Ok(Literal::Boolean(false)),
                 _ => Err(RuntimeError::TypeError(
                     operator.line,
-                    "Operands must be numbers.",
+                    "Operands must be numbers.".to_string(),
                 )),
             },
             _ => match operator.token {
@@ -118,7 +120,7 @@ impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
                 TokenType::BangEqual => Ok(Literal::Boolean(true)),
                 _ => Err(RuntimeError::TypeError(
                     operator.line,
-                    "Operands must be numbers.",
+                    "Operands must be numbers.".to_string(),
                 )),
             },
         }
@@ -164,6 +166,41 @@ impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
         } else {
             self.evaluate(right)
         }
+    }
+
+    fn visit_call(
+        &mut self,
+        callee: &Expr,
+        arguments: &[Expr],
+        closing: &Token,
+    ) -> Result<Literal, RuntimeError> {
+        let c = match self.evaluate(callee)? {
+            Literal::Callable(c) => c,
+            c => {
+                return Err(RuntimeError::TypeError(
+                    closing.line,
+                    format!("{} is not callable.", c),
+                ))
+            }
+        };
+
+        let mut processed_args = Vec::with_capacity(arguments.len());
+        for arg in arguments.iter() {
+            processed_args.push(self.evaluate(arg)?);
+        }
+
+        if processed_args.len() != c.arity() {
+            return Err(RuntimeError::TypeError(
+                closing.line,
+                format!(
+                    "Expected {} arguments but got {}.",
+                    c.arity(),
+                    processed_args.len()
+                ),
+            ));
+        }
+
+        c.call(processed_args)
     }
 }
 

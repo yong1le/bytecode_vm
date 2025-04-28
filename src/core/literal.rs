@@ -1,4 +1,6 @@
-use std::{borrow::Cow, fmt};
+use std::{borrow::Cow, fmt, rc::Rc};
+
+use super::callable::LoxCallable;
 
 /// The literal values that can be used by Lox.
 #[derive(Debug, Clone)]
@@ -6,6 +8,7 @@ pub enum Literal {
     String(Cow<'static, str>),
     Number(f64),
     Boolean(bool),
+    Callable(Rc<dyn LoxCallable>),
     Nil,
 }
 
@@ -24,6 +27,7 @@ impl fmt::Display for Literal {
                     }
                 }
                 Literal::Boolean(a) => a.to_string(),
+                Literal::Callable(c) => format!("<fn {}>", c.name()),
                 Literal::Nil => "nil".to_string(),
             }
         )
@@ -43,10 +47,9 @@ impl Literal {
 
     pub fn is_truthy(&self) -> bool {
         match self {
-            Literal::String(_) => true,
-            Literal::Number(_) => true,
             Literal::Boolean(b) => b.to_owned(),
             Literal::Nil => false,
+            _ => true,
         }
     }
 }
