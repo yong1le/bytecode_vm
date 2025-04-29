@@ -308,7 +308,12 @@ impl StmtVisitor<Result<(), RuntimeError>> for Interpreter {
         params: &[Token],
         body: &[Stmt],
     ) -> Result<(), RuntimeError> {
-        let function = LoxFunction::new(id.to_owned(), params.to_owned(), body.to_owned());
+        let function = LoxFunction::new(
+            id.to_owned(),
+            params.to_owned(),
+            body.to_owned(),
+            self.env.borrow().clone(),
+        );
 
         self.env
             .borrow_mut()

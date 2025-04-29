@@ -527,28 +527,32 @@ impl<'a> Parser<'a> {
 
     fn call(&mut self) -> Result<Expr, SyntaxError> {
         let mut expr = self.primary()?;
-        let mut args = Vec::new();
 
-        if self.consume(TokenType::LeftParen).is_ok() {
-            loop {
-                let t = self.peek()?;
+        loop {
+            let mut args = Vec::new();
+            if self.consume(TokenType::LeftParen).is_ok() {
+                loop {
+                    let t = self.peek()?;
 
-                match t.token {
-                    TokenType::RightParen => {
-                        break;
-                    }
-                    _ => {
-                        args.push(self.expression()?);
-                        if self.consume(TokenType::Comma).is_err() {
+                    match t.token {
+                        TokenType::RightParen => {
                             break;
+                        }
+                        _ => {
+                            args.push(self.expression()?);
+                            if self.consume(TokenType::Comma).is_err() {
+                                break;
+                            }
                         }
                     }
                 }
+
+                let closing = self.consume(TokenType::RightParen)?;
+
+                expr = Expr::Call(Box::new(expr), args, closing);
+            } else {
+                break;
             }
-
-            let closing = self.consume(TokenType::RightParen)?;
-
-            expr = Expr::Call(Box::new(expr), args, closing);
         }
 
         Ok(expr)

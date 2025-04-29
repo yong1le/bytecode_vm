@@ -3,6 +3,7 @@ use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use crate::core::literal::Literal;
 
 /// An environment that holds variables and their values.
+#[derive(Debug, Clone)]
 pub struct Environment {
     /// The enclosing environment, if any.
     enclosing: Option<Rc<RefCell<Environment>>>,

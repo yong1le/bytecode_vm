@@ -1,5 +1,9 @@
 use core::fmt;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use crate::{
     ast::stmt::Stmt,
@@ -45,11 +49,17 @@ pub struct LoxFunction {
     id: Token,
     params: Vec<Token>,
     body: Vec<Stmt>,
+    closure: Rc<RefCell<Environment>>,
 }
 
 impl LoxFunction {
-    pub fn new(id: Token, params: Vec<Token>, body: Vec<Stmt>) -> Self {
-        Self { id, params, body }
+    pub fn new(id: Token, params: Vec<Token>, body: Vec<Stmt>, closure: Environment) -> Self {
+        Self {
+            id,
+            params,
+            body,
+            closure: Rc::new(RefCell::new(closure)),
+        }
     }
 }
 
@@ -59,7 +69,7 @@ impl LoxCallable for LoxFunction {
         interpreter: &mut Interpreter,
         arguments: Vec<Literal>,
     ) -> Result<Literal, RuntimeError> {
-        let env = Environment::new_enclosed(&interpreter.globals);
+        let env = Environment::new_enclosed(&self.closure);
 
         for arg in self.params.iter().zip(arguments) {
             env.borrow_mut().define(&arg.0.lexeme, arg.1);
