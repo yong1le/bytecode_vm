@@ -318,9 +318,6 @@ impl StmtVisitor<Result<(), RuntimeError>> for Interpreter {
     }
 
     fn visit_return(&mut self, expr: &Expr) -> Result<(), RuntimeError> {
-        match self.evaluate(expr)? {
-            Literal::Nil => Ok(()),
-            l => Err(RuntimeError::ReturnValue(l)),
-        }
+        Err(RuntimeError::ReturnValue(self.evaluate(expr)?))
     }
 }

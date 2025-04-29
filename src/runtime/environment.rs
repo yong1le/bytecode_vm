@@ -27,11 +27,6 @@ impl Environment {
         }))
     }
 
-    /// Returns the enclosing environment, if any.
-    pub fn get_enclosing(&self) -> Option<Rc<RefCell<Environment>>> {
-        self.enclosing.as_ref().map(Rc::clone)
-    }
-
     /// Defines a variable in the environment.
     pub fn define(&mut self, id: &String, value: Literal) {
         self.values.insert(id.to_owned(), value);
