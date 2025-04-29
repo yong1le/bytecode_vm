@@ -15,12 +15,13 @@ use crate::{
 // funcDecl       → "fun" IDENTIFIER "(" parameters? ")" block ;
 // parameters     → IDENTIFIER ( "," IDENTIFIER )* ;
 // varDecl        → "var" IDENTIFIER ( "=" )? ";";
-// statement      → exprStmt | printStmt | if | for | while | block ;
+// statement      → exprStmt | printStmt | if | for | while | block | return ;
 // block          → "{" declaration* "}"
 // exprStmt       → expression ";" '
 // printStmt      → "print" expression ";" ;
 // if             → "if (" expression ")" statement ( "else" statement )?
 // while          → "while (" expression ")" statement
+// return         → "return" expression? ";" ;
 
 // expression     → assignment ;
 // assignment     → IDENTIFIER "=" assignment | logic_or;
@@ -241,6 +242,10 @@ impl<'a> Parser<'a> {
                 self.advance()?;
                 self.for_stmt()
             }
+            TokenType::Return => {
+                self.advance()?;
+                self.return_stmt()
+            }
             _ => self.expression_stmt(),
         }
     }
@@ -350,6 +355,15 @@ impl<'a> Parser<'a> {
         };
 
         Ok(body)
+    }
+
+    fn return_stmt(&mut self) -> Result<Stmt, SyntaxError> {
+        if self.consume(TokenType::Semicolon).is_ok() {
+            return Ok(Stmt::Return(Expr::Literal(Literal::Nil)));
+        }
+        let expr = self.expression()?;
+        self.consume(TokenType::Semicolon)?;
+        Ok(Stmt::Return(expr))
     }
 
     fn expression_stmt(&mut self) -> Result<Stmt, SyntaxError> {

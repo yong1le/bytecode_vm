@@ -2,6 +2,8 @@ use std::fmt;
 
 use crate::ast::expr::Expr;
 
+use super::literal::Literal;
+
 /// Errors that can occur during scanning/lexical analysis.
 #[derive(Debug, Clone)]
 pub enum ScanError {
@@ -24,6 +26,7 @@ pub enum SyntaxError {
 pub enum RuntimeError {
     TypeError(u32, String),
     NameError(u32, String),
+    ReturnValue(Literal), // Used to return value from functions
 }
 
 impl fmt::Display for ScanError {
@@ -90,6 +93,7 @@ impl fmt::Display for RuntimeError {
             RuntimeError::NameError(line, s) => {
                 write!(f, "[line {}] Error: Variable '{}' is not defined.", line, s)
             }
+            RuntimeError::ReturnValue(literal) => write!(f, "Returning {}", literal),
         }
     }
 }

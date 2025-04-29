@@ -44,16 +44,12 @@ impl LoxCallable for Clock {
 pub struct LoxFunction {
     id: Token,
     params: Vec<Token>,
-    body: Stmt,
+    body: Vec<Stmt>,
 }
 
 impl LoxFunction {
     pub fn new(id: Token, params: Vec<Token>, body: Vec<Stmt>) -> Self {
-        Self {
-            id,
-            params,
-            body: Stmt::Block(body),
-        }
+        Self { id, params, body }
     }
 }
 
@@ -69,9 +65,7 @@ impl LoxCallable for LoxFunction {
             env.borrow_mut().define(&arg.0.lexeme, arg.1);
         }
 
-        interpreter.interpret_with_env(&self.body, env)?;
-
-        Ok(Literal::Nil)
+        interpreter.interpret_with_env(&self.body, env)
     }
 
     fn arity(&self) -> usize {

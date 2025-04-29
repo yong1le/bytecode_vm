@@ -50,21 +50,35 @@ impl Interpreter {
         self.env = env;
     }
 
-    /// Temporary interprets the statement with a different env. On return, changes the env back to
+    /// Temporary interprets the statements with a different env. On return, changes the env back to
     /// the original one. Because this function is used by `LoxFunction`'s, it it possible for it
     /// to return a value
     pub fn interpret_with_env(
         &mut self,
-        stmt: &Stmt,
+        stmts: &[Stmt],
         env: Rc<RefCell<Environment>>,
-    ) -> Result<(), RuntimeError> {
+    ) -> Result<Literal, RuntimeError> {
         let old_env = Rc::clone(&self.env);
         self.set_env(env);
 
-        self.interpret(stmt)?;
+        let mut return_value = None;
+        for s in stmts {
+            match self.interpret(s) {
+                Ok(()) => (),
+                Err(RuntimeError::ReturnValue(l)) => {
+                    return_value = Some(l);
+                    break;
+                }
+                Err(e) => return Err(e),
+            }
+        }
+
         self.set_env(old_env);
 
-        Ok(())
+        match return_value {
+            Some(r) => Ok(r),
+            None => Ok(Literal::Nil),
+        }
     }
 }
 
@@ -258,19 +272,7 @@ impl StmtVisitor<Result<(), RuntimeError>> for Interpreter {
 
     fn visit_block(&mut self, statements: &[Stmt]) -> Result<(), RuntimeError> {
         let new_env = Environment::new_enclosed(&self.env);
-        self.set_env(new_env);
-        for s in statements {
-            self.interpret(s)?;
-        }
-
-        let old_env = self
-            .env
-            .borrow()
-            .get_enclosing()
-            .unwrap_or(Environment::new());
-
-        self.set_env(old_env);
-
+        self.interpret_with_env(statements, new_env)?;
         Ok(())
     }
 
@@ -313,5 +315,12 @@ impl StmtVisitor<Result<(), RuntimeError>> for Interpreter {
             .define(&id.lexeme, Literal::Callable(Rc::new(function)));
 
         Ok(())
+    }
+
+    fn visit_return(&mut self, expr: &Expr) -> Result<(), RuntimeError> {
+        match self.evaluate(expr)? {
+            Literal::Nil => Ok(()),
+            l => Err(RuntimeError::ReturnValue(l)),
+        }
     }
 }
