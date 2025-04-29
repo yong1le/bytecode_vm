@@ -1,10 +1,19 @@
 use core::fmt;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::{errors::RuntimeError, literal::Literal};
+use crate::{
+    ast::stmt::Stmt,
+    runtime::{environment::Environment, interpreter::Interpreter},
+};
+
+use super::{errors::RuntimeError, literal::Literal, token::Token};
 
 pub trait LoxCallable: fmt::Debug {
-    fn call(&self, arguments: Vec<Literal>) -> Result<Literal, RuntimeError>;
+    fn call(
+        &self,
+        interpreter: &mut Interpreter,
+        arguments: Vec<Literal>,
+    ) -> Result<Literal, RuntimeError>;
     fn arity(&self) -> usize;
     fn name(&self) -> &str;
 }
@@ -13,7 +22,7 @@ pub trait LoxCallable: fmt::Debug {
 #[derive(Debug)]
 pub struct Clock;
 impl LoxCallable for Clock {
-    fn call(&self, _: Vec<Literal>) -> Result<Literal, RuntimeError> {
+    fn call(&self, _: &mut Interpreter, _: Vec<Literal>) -> Result<Literal, RuntimeError> {
         let time = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("Time went backwards.");
@@ -27,5 +36,49 @@ impl LoxCallable for Clock {
 
     fn name(&self) -> &str {
         "clock"
+    }
+}
+
+// User Functions
+#[derive(Debug)]
+pub struct LoxFunction {
+    id: Token,
+    params: Vec<Token>,
+    body: Stmt,
+}
+
+impl LoxFunction {
+    pub fn new(id: Token, params: Vec<Token>, body: Vec<Stmt>) -> Self {
+        Self {
+            id,
+            params,
+            body: Stmt::Block(body),
+        }
+    }
+}
+
+impl LoxCallable for LoxFunction {
+    fn call(
+        &self,
+        interpreter: &mut Interpreter,
+        arguments: Vec<Literal>,
+    ) -> Result<Literal, RuntimeError> {
+        let env = Environment::new_enclosed(&interpreter.globals);
+
+        for arg in self.params.iter().zip(arguments) {
+            env.borrow_mut().define(&arg.0.lexeme, arg.1);
+        }
+
+        interpreter.interpret_with_env(&self.body, env)?;
+
+        Ok(Literal::Nil)
+    }
+
+    fn arity(&self) -> usize {
+        self.params.len()
+    }
+
+    fn name(&self) -> &str {
+        &self.id.lexeme
     }
 }

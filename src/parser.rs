@@ -11,7 +11,9 @@ use crate::{
 };
 
 // program        →  declaration* EOF;
-// declaration    → varDecl | statement;
+// declaration    → varDecl | funcDecl | statement ;
+// funcDecl       → "fun" IDENTIFIER "(" parameters? ")" block ;
+// parameters     → IDENTIFIER ( "," IDENTIFIER )* ;
 // varDecl        → "var" IDENTIFIER ( "=" )? ";";
 // statement      → exprStmt | printStmt | if | for | while | block ;
 // block          → "{" declaration* "}"
@@ -28,8 +30,7 @@ use crate::{
 // comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 // term           → factor ( ( "-" | "+" ) factor )* ;
 // factor         → unary ( ( "/" | "*" ) unary )* ;
-// unary          → ( "!" | "-" ) unary
-//                | call ;
+// unary          → ( "!" | "-" ) unary | call ;
 // call           → primary ( "(" arguments? ")" )* ;
 // arguments      → expression ( "," expression )* ;
 // primary        → NUMBER | STRING | "true" | "false" | "nil"
@@ -153,33 +154,67 @@ impl<'a> Parser<'a> {
                 self.advance()?;
                 self.declare_var()
             }
+            TokenType::Fun => {
+                self.advance()?;
+                self.declare_func()
+            }
             _ => self.statement(),
         }
     }
 
     fn declare_var(&mut self) -> Result<Stmt, SyntaxError> {
-        let identifier_token = self.advance()?;
+        let identifier_token = self.consume(TokenType::Identifier)?;
 
-        match identifier_token.token {
-            TokenType::Identifier => {
-                if let Ok(_equals) = self.consume(TokenType::Equal) {
-                    let initializer = self.expression()?;
-                    self.consume(TokenType::Semicolon)?;
-                    Ok(Stmt::DeclareVar(identifier_token, initializer))
-                } else {
-                    self.consume(TokenType::Semicolon)?;
-                    Ok(Stmt::DeclareVar(
-                        identifier_token,
-                        Expr::Literal(Literal::Nil),
-                    ))
+        if let Ok(_equals) = self.consume(TokenType::Equal) {
+            let initializer = self.expression()?;
+            self.consume(TokenType::Semicolon)?;
+            Ok(Stmt::DeclareVar(identifier_token, initializer))
+        } else {
+            self.consume(TokenType::Semicolon)?;
+            Ok(Stmt::DeclareVar(
+                identifier_token,
+                Expr::Literal(Literal::Nil),
+            ))
+        }
+    }
+
+    fn declare_func(&mut self) -> Result<Stmt, SyntaxError> {
+        let identifier_token = self.consume(TokenType::Identifier)?;
+
+        let mut params = Vec::new();
+
+        self.consume(TokenType::LeftParen)?;
+
+        loop {
+            let t = self.peek()?;
+
+            match t.token {
+                TokenType::RightParen => {
+                    break;
+                }
+                _ => {
+                    let param = self.consume(TokenType::Identifier)?;
+                    params.push(param);
+                    if self.consume(TokenType::Comma).is_err() {
+                        break;
+                    }
                 }
             }
-            _ => Err(SyntaxError::ExpectedChar(
-                identifier_token.line,
-                identifier_token.lexeme.to_string(),
-                "IDENTIFIER".to_string(),
-            )),
         }
+        let closing = self.consume(TokenType::RightParen)?;
+
+        let body = match self.statement()? {
+            Stmt::Block(v) => v,
+            _ => {
+                return Err(SyntaxError::ExpectedChar(
+                    closing.line,
+                    ")".to_string(),
+                    "function body".to_string(),
+                ))
+            }
+        };
+
+        Ok(Stmt::DeclareFunc(identifier_token, params, body))
     }
 
     fn statement(&mut self) -> Result<Stmt, SyntaxError> {
@@ -508,13 +543,13 @@ impl<'a> Parser<'a> {
     fn primary(&mut self) -> Result<Expr, SyntaxError> {
         let t = self.advance()?;
 
-        let expr = match t.token {
+        let expr = match &t.token {
             TokenType::Identifier => Expr::Variable(t),
             TokenType::True => Expr::Literal(Literal::Boolean(true)),
             TokenType::False => Expr::Literal(Literal::Boolean(false)),
             TokenType::Nil => Expr::Literal(Literal::Nil),
-            TokenType::String => Expr::Literal(t.literal.to_owned()),
-            TokenType::Number => Expr::Literal(t.literal.to_owned()),
+            TokenType::String => Expr::Literal(t.literal),
+            TokenType::Number => Expr::Literal(t.literal),
             TokenType::LeftParen => {
                 let expr = self.expression()?;
                 self.consume(TokenType::RightParen)?;

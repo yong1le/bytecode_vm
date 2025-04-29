@@ -6,7 +6,7 @@ use crate::{
         stmt::{Stmt, StmtVisitor},
     },
     core::{
-        callable::Clock,
+        callable::{Clock, LoxFunction},
         errors::RuntimeError,
         literal::Literal,
         token::{Token, TokenType},
@@ -17,7 +17,10 @@ use super::environment::Environment;
 
 // A struct that represents an interpreter for evaluating expressions and executing statements.
 pub struct Interpreter {
-    /// The environment that holds all state.
+    /// The environment that holds global state.
+    pub globals: Rc<RefCell<Environment>>,
+    /// The current active scope, we should not need to manually search the globals scope, b/c
+    /// everything in globals should be in env
     env: Rc<RefCell<Environment>>,
 }
 
@@ -26,7 +29,10 @@ impl Interpreter {
         let env = Environment::new();
         env.borrow_mut()
             .define(&"clock".to_string(), Literal::Callable(Rc::new(Clock)));
-        Self { env }
+        Self {
+            env: Rc::clone(&env),
+            globals: env,
+        }
     }
 
     /// Evaluates a single expression and returns its result.
@@ -42,6 +48,23 @@ impl Interpreter {
     /// Changes the environment to a different one.
     fn set_env(&mut self, env: Rc<RefCell<Environment>>) {
         self.env = env;
+    }
+
+    /// Temporary interprets the statement with a different env. On return, changes the env back to
+    /// the original one. Because this function is used by `LoxFunction`'s, it it possible for it
+    /// to return a value
+    pub fn interpret_with_env(
+        &mut self,
+        stmt: &Stmt,
+        env: Rc<RefCell<Environment>>,
+    ) -> Result<(), RuntimeError> {
+        let old_env = Rc::clone(&self.env);
+        self.set_env(env);
+
+        self.interpret(stmt)?;
+        self.set_env(old_env);
+
+        Ok(())
     }
 }
 
@@ -200,7 +223,7 @@ impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
             ));
         }
 
-        c.call(processed_args)
+        c.call(self, processed_args)
     }
 }
 
@@ -273,6 +296,21 @@ impl StmtVisitor<Result<(), RuntimeError>> for Interpreter {
         while self.evaluate(condition)?.is_truthy() {
             self.interpret(while_block)?;
         }
+
+        Ok(())
+    }
+
+    fn visit_declare_func(
+        &mut self,
+        id: &Token,
+        params: &[Token],
+        body: &[Stmt],
+    ) -> Result<(), RuntimeError> {
+        let function = LoxFunction::new(id.to_owned(), params.to_owned(), body.to_owned());
+
+        self.env
+            .borrow_mut()
+            .define(&id.lexeme, Literal::Callable(Rc::new(function)));
 
         Ok(())
     }
