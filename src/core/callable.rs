@@ -75,7 +75,11 @@ impl LoxCallable for LoxFunction {
             env.borrow_mut().define(&arg.0.lexeme, arg.1);
         }
 
-        interpreter.interpret_with_env(&self.body, env)
+        match interpreter.interpret_with_env(&self.body, env) {
+            Ok(()) => Ok(Literal::Nil),
+            Err(RuntimeError::ReturnValue(l)) => Ok(l),
+            Err(e) => Err(e),
+        }
     }
 
     fn arity(&self) -> usize {

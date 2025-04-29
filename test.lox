@@ -1,5 +1,4 @@
-
-
+// and uses it to filter a list of numbers
 fun makeFilter(min) {
   fun filter(n) {
     if (n < min) {
@@ -21,11 +20,12 @@ fun applyToNumbers(f, count) {
   }
 }
 
-var greaterThanX = makeFilter(55);
-var greaterThanY = makeFilter(10);
+var greaterThanX = makeFilter(67);
+print greaterThanX;
+var greaterThanY = makeFilter(72);
 
-print "Numbers >= 55:";
-applyToNumbers(greaterThanX, 55 + 5);
+print "Numbers >= 67:";
+applyToNumbers(greaterThanX, 67 + 5);
 
-print "Numbers >= 10:";
-applyToNumbers(greaterThanY, 10 + 5);
+print "Numbers >= 72:";
+applyToNumbers(greaterThanY, 72 + 5);

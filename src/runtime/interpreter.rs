@@ -18,9 +18,6 @@ use super::environment::Environment;
 // A struct that represents an interpreter for evaluating expressions and executing statements.
 pub struct Interpreter {
     /// The environment that holds global state.
-    pub globals: Rc<RefCell<Environment>>,
-    /// The current active scope, we should not need to manually search the globals scope, b/c
-    /// everything in globals should be in env
     env: Rc<RefCell<Environment>>,
 }
 
@@ -29,10 +26,7 @@ impl Interpreter {
         let env = Environment::new();
         env.borrow_mut()
             .define(&"clock".to_string(), Literal::Callable(Rc::new(Clock)));
-        Self {
-            env: Rc::clone(&env),
-            globals: env,
-        }
+        Self { env }
     }
 
     /// Evaluates a single expression and returns its result.
@@ -57,27 +51,26 @@ impl Interpreter {
         &mut self,
         stmts: &[Stmt],
         env: Rc<RefCell<Environment>>,
-    ) -> Result<Literal, RuntimeError> {
+    ) -> Result<(), RuntimeError> {
         let old_env = Rc::clone(&self.env);
         self.set_env(env);
 
-        let mut return_value = None;
+        let mut return_value: Option<RuntimeError> = None;
         for s in stmts {
             match self.interpret(s) {
                 Ok(()) => (),
-                Err(RuntimeError::ReturnValue(l)) => {
-                    return_value = Some(l);
+                Err(e) => {
+                    return_value = Some(e);
                     break;
                 }
-                Err(e) => return Err(e),
             }
         }
 
         self.set_env(old_env);
 
         match return_value {
-            Some(r) => Ok(r),
-            None => Ok(Literal::Nil),
+            None => Ok(()),
+            Some(e) => Err(e),
         }
     }
 }
