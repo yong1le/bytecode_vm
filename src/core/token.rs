@@ -3,7 +3,7 @@ use std::fmt::{self};
 use super::literal::Literal;
 
 /// Enum to represent the different types of tokens in the language.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Hash, Eq)]
 pub enum TokenType {
     LeftParen,
     RightParen,

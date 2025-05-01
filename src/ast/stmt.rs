@@ -9,7 +9,7 @@ use super::expr::Expr;
 pub enum Stmt {
     Print(Expr),
     Expr(Expr),
-    DeclareVar(Token, Expr),
+    DeclareVar(Token, Option<Expr>),
     Block(Vec<Stmt>),
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),
     While(Expr, Box<Stmt>),
@@ -21,7 +21,7 @@ pub enum Stmt {
 pub trait StmtVisitor<T> {
     fn visit_print(&mut self, stmt: &Expr) -> T;
     fn visit_expr(&mut self, expr: &Expr) -> T;
-    fn visit_declare_var(&mut self, id: &Token, expr: &Expr) -> T;
+    fn visit_declare_var(&mut self, id: &Token, expr: &Option<Expr>) -> T;
     fn visit_block(&mut self, statements: &[Stmt]) -> T;
     fn visit_if(&mut self, condition: &Expr, if_block: &Stmt, else_block: &Option<Box<Stmt>>) -> T;
     fn visit_while(&mut self, condition: &Expr, while_block: &Stmt) -> T;
@@ -49,7 +49,15 @@ impl fmt::Display for Stmt {
         match self {
             Stmt::Expr(e) => write!(f, "{}", e),
             Stmt::Print(e) => write!(f, "(print {})", e),
-            Stmt::DeclareVar(id, expr) => write!(f, "(var {} ({}))", id.lexeme, expr),
+            Stmt::DeclareVar(id, expr) => write!(
+                f,
+                "(var {} ({}))",
+                id.lexeme,
+                match expr {
+                    Some(e) => format!("{e}"),
+                    None => "null".to_string(),
+                }
+            ),
             Stmt::Block(stmts) => write!(f, "(block {:?})", stmts),
             Stmt::If(expr, if_block, else_block) => write!(
                 f,

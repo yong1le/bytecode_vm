@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 use crate::{
     ast::{
@@ -18,7 +18,9 @@ use super::environment::Environment;
 // A struct that represents an interpreter for evaluating expressions and executing statements.
 pub struct Interpreter {
     /// The environment that holds global state.
+    globals: Rc<RefCell<Environment>>,
     env: Rc<RefCell<Environment>>,
+    locals: HashMap<(TokenType, String, u32), u32>,
 }
 
 impl Interpreter {
@@ -26,7 +28,11 @@ impl Interpreter {
         let env = Environment::new();
         env.borrow_mut()
             .define(&"clock".to_string(), Literal::Callable(Rc::new(Clock)));
-        Self { env }
+        Self {
+            env: Rc::clone(&env),
+            globals: env,
+            locals: HashMap::new(),
+        }
     }
 
     /// Evaluates a single expression and returns its result.
@@ -45,8 +51,7 @@ impl Interpreter {
     }
 
     /// Temporary interprets the statements with a different env. On return, changes the env back to
-    /// the original one. Because this function is used by `LoxFunction`'s, it it possible for it
-    /// to return a value
+    /// the original one.
     pub fn interpret_with_env(
         &mut self,
         stmts: &[Stmt],
@@ -72,6 +77,10 @@ impl Interpreter {
             None => Ok(()),
             Some(e) => Err(e),
         }
+    }
+
+    pub fn resolve(&mut self, token_type: TokenType, lexeme: String, line: u32, depth: u32) {
+        self.locals.insert((token_type, lexeme, line), depth);
     }
 }
 
@@ -161,20 +170,41 @@ impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
     }
 
     fn visit_variable(&mut self, id: &Token) -> Result<Literal, RuntimeError> {
-        match self.env.borrow().get(&id.lexeme) {
+        let result = match self
+            .locals
+            .get(&(id.token.to_owned(), id.lexeme.to_owned(), id.line))
+        {
+            Some(depth) => self.env.borrow().get_at(&id.lexeme, depth.to_owned()),
+            None => self.globals.borrow().get(&id.lexeme),
+        };
+
+        match result {
             Some(var) => Ok(var),
             None => Err(RuntimeError::NameError(id.line, id.lexeme.to_string())),
         }
     }
 
     fn visit_assignment(&mut self, id: &Token, assignment: &Expr) -> Result<Literal, RuntimeError> {
-        let literal = self.evaluate(assignment);
-        match literal {
-            Ok(l) => match self.env.borrow_mut().assign(&id.lexeme, l.to_owned()) {
-                Ok(()) => Ok(l.to_owned()),
-                Err(()) => Err(RuntimeError::NameError(id.line, id.lexeme.to_owned())),
-            },
-            Err(e) => Err(e),
+        let literal = self.evaluate(assignment)?;
+
+        let result = match self
+            .locals
+            .get(&(id.token.to_owned(), id.lexeme.to_owned(), id.line))
+        {
+            Some(depth) => {
+                self.env
+                    .borrow_mut()
+                    .assign_at(&id.lexeme, literal.to_owned(), depth.to_owned())
+            }
+            None => self
+                .globals
+                .borrow_mut()
+                .assign(&id.lexeme, literal.to_owned()),
+        };
+
+        match result {
+            Ok(()) => Ok(literal),
+            Err(()) => Err(RuntimeError::NameError(id.line, id.lexeme.to_owned())),
         }
     }
 
@@ -252,15 +282,14 @@ impl StmtVisitor<Result<(), RuntimeError>> for Interpreter {
         }
     }
 
-    fn visit_declare_var(&mut self, id: &Token, expr: &Expr) -> Result<(), RuntimeError> {
-        let literal = self.evaluate(expr);
-        match literal {
-            Ok(l) => {
-                self.env.borrow_mut().define(&id.lexeme, l);
-                Ok(())
-            }
-            Err(e) => Err(e),
-        }
+    fn visit_declare_var(&mut self, id: &Token, expr: &Option<Expr>) -> Result<(), RuntimeError> {
+        let literal = match expr {
+            Some(e) => self.evaluate(e)?,
+            None => Literal::Nil,
+        };
+
+        self.env.borrow_mut().define(&id.lexeme, literal);
+        Ok(())
     }
 
     fn visit_block(&mut self, statements: &[Stmt]) -> Result<(), RuntimeError> {

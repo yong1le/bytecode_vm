@@ -1,15 +1,18 @@
 mod ast;
 mod core;
 mod parser;
+mod resolver;
 mod runtime;
 mod scanner;
 
+use itertools::{Either, Itertools};
 use std::env;
 use std::fs;
 use std::process::exit;
 
 use interpreter::Interpreter;
 use parser::Parser;
+use resolver::Resolver;
 use runtime::interpreter;
 use scanner::Scanner;
 
@@ -101,21 +104,48 @@ fn main() {
         "run" => {
             let scanner = Scanner::new(&file_contents);
             let parser = Parser::new(scanner);
-            let mut interpreter = Interpreter::new();
 
-            parser.for_each(|stmt| match stmt {
-                Ok(s) => match interpreter.interpret(&s) {
+            let (statements, errs): (Vec<_>, Vec<_>) = parser.partition_map(|r| match r {
+                Ok(v) => Either::Left(v),
+                Err(v) => Either::Right(v),
+            });
+
+            // Return early if any syntax errors
+            errs.iter().for_each(|e| {
+                eprintln!("{e}");
+            });
+            if !errs.is_empty() {
+                exit(65);
+            }
+
+            let mut interpreter = Interpreter::new();
+            let mut resolver = Resolver::new(&mut interpreter);
+
+            // First pass, resolve variable bindings
+            statements
+                .iter()
+                .for_each(|stmt| match resolver.resolve_stmt(stmt) {
+                    Ok(()) => (),
+                    Err(e) => {
+                        eprintln!("{e}");
+                        exit_code = 65;
+                    }
+                });
+
+            if exit_code != 0 {
+                exit(exit_code);
+            }
+
+            // Second pass, interpret statements
+            statements
+                .iter()
+                .for_each(|stmt| match interpreter.interpret(stmt) {
                     Ok(()) => (),
                     Err(e) => {
                         eprintln!("{e}");
                         exit(70);
                     }
-                },
-                Err(e) => {
-                    eprintln!("{e}");
-                    exit(65);
-                }
-            });
+                });
 
             exit(exit_code);
         }

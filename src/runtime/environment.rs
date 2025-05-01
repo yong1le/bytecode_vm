@@ -28,6 +28,23 @@ impl Environment {
         }))
     }
 
+    /// Condition: depth >= 1
+    fn ancestor(&self, depth: u32) -> Rc<RefCell<Environment>> {
+        match &self.enclosing {
+            Some(enclosing) => {
+                if depth == 1 {
+                    Rc::clone(enclosing)
+                } else {
+                    enclosing.borrow().ancestor(depth - 1)
+                }
+            }
+            None => panic!(
+                "Attempted to access ancestor environment at depth {}, but it doesn't exist. [This should never happen]",
+                depth
+            ),
+        }
+    }
+
     /// Defines a variable in the environment.
     pub fn define(&mut self, id: &String, value: Literal) {
         self.values.insert(id.to_owned(), value);
@@ -46,6 +63,14 @@ impl Environment {
         None
     }
 
+    pub fn get_at(&self, id: &String, depth: u32) -> Option<Literal> {
+        if depth == 0 {
+            self.get(id)
+        } else {
+            self.ancestor(depth).borrow().get(id)
+        }
+    }
+
     /// Assigns a value to a variable in the environment, or any enclosing environment.
     /// If no variable is found, it returns an error.
     pub fn assign(&mut self, id: &String, value: Literal) -> Result<(), ()> {
@@ -56,6 +81,14 @@ impl Environment {
             return enclosing.borrow_mut().assign(id, value);
         } else {
             Err(())
+        }
+    }
+
+    pub fn assign_at(&mut self, id: &String, value: Literal, depth: u32) -> Result<(), ()> {
+        if depth == 0 {
+            self.assign(id, value)
+        } else {
+            self.ancestor(depth).borrow_mut().assign(id, value)
         }
     }
 }

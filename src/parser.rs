@@ -169,13 +169,10 @@ impl<'a> Parser<'a> {
         if let Ok(_equals) = self.consume(TokenType::Equal) {
             let initializer = self.expression()?;
             self.consume(TokenType::Semicolon)?;
-            Ok(Stmt::DeclareVar(identifier_token, initializer))
+            Ok(Stmt::DeclareVar(identifier_token, Some(initializer)))
         } else {
             self.consume(TokenType::Semicolon)?;
-            Ok(Stmt::DeclareVar(
-                identifier_token,
-                Expr::Literal(Literal::Nil),
-            ))
+            Ok(Stmt::DeclareVar(identifier_token, None))
         }
     }
 

@@ -21,6 +21,12 @@ pub enum SyntaxError {
     InvalidAssignment(u32, Expr),
 }
 
+#[derive(Debug, Clone)]
+pub enum SemanticError {
+    UndeclaredLocalInInitializer(u32),
+    AlreadyDeclared(u32, String),
+}
+
 /// Runtime errors that occur while executing the program.
 #[derive(Debug, Clone)]
 pub enum RuntimeError {
@@ -94,6 +100,23 @@ impl fmt::Display for RuntimeError {
                 write!(f, "[line {}] Error: Variable '{}' is not defined.", line, s)
             }
             RuntimeError::ReturnValue(literal) => write!(f, "Returning {}", literal),
+        }
+    }
+}
+
+impl fmt::Display for SemanticError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::UndeclaredLocalInInitializer(line) => write!(
+                f,
+                "[line {}] Error: Can't read local variable in its own initializer.",
+                line
+            ),
+            Self::AlreadyDeclared(line, id) => write!(
+                f,
+                "[line {}] Error: Already a variable '{}' in this scope.",
+                line, id
+            ),
         }
     }
 }
