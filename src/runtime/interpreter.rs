@@ -305,7 +305,7 @@ impl StmtVisitor<Result<(), RuntimeError>> for Interpreter {
             id.to_owned(),
             params.to_owned(),
             body.to_owned(),
-            self.env.borrow().clone(),
+            self.env.clone(),
         );
 
         self.env

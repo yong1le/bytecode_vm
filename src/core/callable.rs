@@ -53,12 +53,17 @@ pub struct LoxFunction {
 }
 
 impl LoxFunction {
-    pub fn new(id: Token, params: Vec<Token>, body: Vec<Stmt>, closure: Environment) -> Self {
+    pub fn new(
+        id: Token,
+        params: Vec<Token>,
+        body: Vec<Stmt>,
+        closure: Rc<RefCell<Environment>>,
+    ) -> Self {
         Self {
             id,
             params,
             body,
-            closure: Rc::new(RefCell::new(closure)),
+            closure,
         }
     }
 }
