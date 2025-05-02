@@ -14,6 +14,8 @@ pub enum Expr {
     And(Box<Expr>, Box<Expr>),
     Or(Box<Expr>, Box<Expr>),
     Call(Box<Expr>, Vec<Expr>, Token),
+    Get(Box<Expr>, Token),
+    Set(Box<Expr>, Token, Box<Expr>),
 }
 
 /// A struct that visits `Expr`
@@ -27,6 +29,8 @@ pub trait ExprVisitor<T> {
     fn visit_and(&mut self, left: &Expr, right: &Expr) -> T;
     fn visit_or(&mut self, left: &Expr, right: &Expr) -> T;
     fn visit_call(&mut self, callee: &Expr, arguments: &[Expr], closing: &Token) -> T;
+    fn visit_get(&mut self, obj: &Expr, prop: &Token) -> T;
+    fn visit_set(&mut self, obj: &Expr, prop: &Token, value: &Expr) -> T;
 }
 
 impl Expr {
@@ -43,6 +47,8 @@ impl Expr {
             Expr::Call(callee, arguments, closing) => {
                 visitor.visit_call(callee, arguments, closing)
             }
+            Expr::Get(obj, prop) => visitor.visit_get(obj, prop),
+            Expr::Set(obj, prop, value) => visitor.visit_set(obj, prop, value),
         }
     }
 }
@@ -59,6 +65,7 @@ impl fmt::Display for Expr {
             Expr::And(e1, e2) => write!(f, "(and {} {})", e1, e2),
             Expr::Or(e1, e2) => write!(f, "(or {} {})", e1, e2),
             Expr::Call(callee, arguments, _) => write!(f, "({} ({:?})", callee, arguments),
+            _ => todo!(),
         }
     }
 }

@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt, rc::Rc};
+use std::{borrow::Cow, cell::RefCell, fmt, rc::Rc};
 
 use super::{
     callable::LoxCallable,
@@ -13,7 +13,7 @@ pub enum Literal {
     Boolean(bool),
     Callable(Rc<dyn LoxCallable>),
     Class(LoxClass),
-    Instance(LoxInstance),
+    Instance(Rc<RefCell<LoxInstance>>),
     Nil,
 }
 
@@ -34,7 +34,7 @@ impl fmt::Display for Literal {
                 Literal::Boolean(a) => a.to_string(),
                 Literal::Callable(c) => format!("<fn {}>", c.name()),
                 Literal::Class(c) => c.name().to_string(),
-                Literal::Instance(c) => format!("{} instance", c.name()),
+                Literal::Instance(c) => format!("{} instance", c.borrow().name()),
                 Literal::Nil => "nil".to_string(),
             }
         )

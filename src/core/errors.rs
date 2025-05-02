@@ -86,6 +86,8 @@ impl fmt::Display for SyntaxError {
                         Expr::Variable(_) => "a variable",
                         Expr::Assign(_, _) => "a assignment",
                         Expr::Call(_, _, _) => "a function call",
+                        Expr::Get(_, _) => "a property",
+                        Expr::Set(_, _, _) => "a property",
                     }
                 )
             }
@@ -98,7 +100,7 @@ impl fmt::Display for RuntimeError {
         match self {
             RuntimeError::TypeError(line, s) => write!(f, "[line {}] Error: {}", line, s),
             RuntimeError::NameError(line, s) => {
-                write!(f, "[line {}] Error: Variable '{}' is not defined.", line, s)
+                write!(f, "[line {}] Error: '{}' is not defined.", line, s)
             }
             RuntimeError::ReturnValue(literal) => write!(f, "Returning {}", literal),
         }

@@ -4,4 +4,8 @@ class DevonshireCream {
   }
 }
 
-print DevonshireCream();
+var d = DevonshireCream();
+
+d.hello = "hello";
+
+print d.hello;

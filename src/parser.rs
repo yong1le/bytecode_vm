@@ -25,7 +25,7 @@ use crate::{
 // return         → "return" expression? ";" ;
 
 // expression     → assignment ;
-// assignment     → IDENTIFIER "=" assignment | logic_or;
+// assignment     → (call ".")? IDENTIFIER "=" assignment | logic_or;
 // logic_or       → logic_and ( "or" logic_and )* ;
 // logic_and      → equality ( "and" equality )* ;
 // equality       → comparison ( ( "!=" | "==" ) comparison )* ;
@@ -33,7 +33,7 @@ use crate::{
 // term           → factor ( ( "-" | "+" ) factor )* ;
 // factor         → unary ( ( "/" | "*" ) unary )* ;
 // unary          → ( "!" | "-" ) unary | call ;
-// call           → primary ( "(" arguments? ")" )* ;
+// call           → primary ( "(" arguments? ")" | "." IDENTIFIER )* ;
 // arguments      → expression ( "," expression )* ;
 // primary        → NUMBER | STRING | "true" | "false" | "nil"
 //                | "(" expression ")" | IDENTIFIER;
@@ -415,6 +415,7 @@ impl<'a> Parser<'a> {
 
                 match expr {
                     Expr::Variable(id) => Ok(Expr::Assign(id, Box::new(value))),
+                    Expr::Get(obj, prop) => Ok(Expr::Set(obj, prop, Box::new(value))),
                     a => Err(SyntaxError::InvalidAssignment(actual.line, a)),
                 }
             }
@@ -577,6 +578,9 @@ impl<'a> Parser<'a> {
                 let closing = self.consume(TokenType::RightParen)?;
 
                 expr = Expr::Call(Box::new(expr), args, closing);
+            } else if self.consume(TokenType::Dot).is_ok() {
+                let prop = self.consume(TokenType::Identifier)?;
+                expr = Expr::Get(Box::new(expr), prop);
             } else {
                 break;
             }

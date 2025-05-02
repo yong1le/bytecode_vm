@@ -258,6 +258,41 @@ impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
 
         c.call(self, processed_args)
     }
+
+    fn visit_get(&mut self, obj: &Expr, prop: &Token) -> Result<Literal, RuntimeError> {
+        match self.evaluate(obj)? {
+            Literal::Instance(instance) => instance.borrow().get(prop),
+            other => Err(RuntimeError::TypeError(
+                prop.line,
+                format!(
+                    "Cannot access '{}' on non-instance value {}",
+                    prop.lexeme, other
+                ),
+            )),
+        }
+    }
+
+    fn visit_set(
+        &mut self,
+        obj: &Expr,
+        prop: &Token,
+        value: &Expr,
+    ) -> Result<Literal, RuntimeError> {
+        match self.evaluate(obj)? {
+            Literal::Instance(instance) => {
+                let literal = self.evaluate(value)?;
+                instance.borrow_mut().set(prop, literal.to_owned());
+                Ok(literal)
+            }
+            other => Err(RuntimeError::TypeError(
+                prop.line,
+                format!(
+                    "Cannot access '{}' on non-instance value {}",
+                    prop.lexeme, other
+                ),
+            )),
+        }
+    }
 }
 
 impl StmtVisitor<Result<(), RuntimeError>> for Interpreter {

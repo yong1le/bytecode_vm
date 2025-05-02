@@ -161,6 +161,17 @@ impl ExprVisitor<Result<(), SemanticError>> for Resolver<'_> {
         }
         Ok(())
     }
+
+    fn visit_get(&mut self, obj: &Expr, _: &Token) -> Result<(), SemanticError> {
+        self.resolve_expr(obj)?;
+        Ok(())
+    }
+
+    fn visit_set(&mut self, obj: &Expr, _: &Token, value: &Expr) -> Result<(), SemanticError> {
+        self.resolve_expr(obj)?;
+        self.resolve_expr(value)?;
+        Ok(())
+    }
 }
 
 impl StmtVisitor<Result<(), SemanticError>> for Resolver<'_> {
