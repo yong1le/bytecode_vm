@@ -172,6 +172,11 @@ impl ExprVisitor<Result<(), SemanticError>> for Resolver<'_> {
         self.resolve_expr(value)?;
         Ok(())
     }
+
+    fn visit_this(&mut self, token: &Token) -> Result<(), SemanticError> {
+        self.resolve_local(token.id, &token.lexeme);
+        Ok(())
+    }
 }
 
 impl StmtVisitor<Result<(), SemanticError>> for Resolver<'_> {
@@ -248,7 +253,7 @@ impl StmtVisitor<Result<(), SemanticError>> for Resolver<'_> {
         Ok(())
     }
 
-    fn visit_decalre_class(
+    fn visit_declare_class(
         &mut self,
         id: &Token,
         methods: &[(Token, Vec<Token>, Vec<Stmt>)],
@@ -256,9 +261,17 @@ impl StmtVisitor<Result<(), SemanticError>> for Resolver<'_> {
         self.declare(id)?;
         self.define(id);
 
+        self.begin_scope();
+
+        if let Some(scope) = self.scopes.last_mut() {
+            scope.insert("this".to_string(), true);
+        }
+
         for (_, params, body) in methods {
             self.resolve_function(params, body)?;
         }
+
+        self.end_scope();
         Ok(())
     }
 }

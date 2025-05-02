@@ -1,15 +1,20 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
-use super::{callable::LoxCallable, errors::RuntimeError, literal::Literal, token::Token};
+use super::{
+    callable::{LoxCallable, LoxFunction},
+    errors::RuntimeError,
+    literal::Literal,
+    token::Token,
+};
 
 #[derive(Clone, Debug)]
 pub struct LoxClass {
     name: String,
-    methods: Rc<HashMap<String, Rc<dyn LoxCallable>>>,
+    methods: Rc<HashMap<String, LoxFunction>>,
 }
 
 impl LoxClass {
-    pub fn new(name: String, methods: HashMap<String, Rc<dyn LoxCallable>>) -> Self {
+    pub fn new(name: String, methods: HashMap<String, LoxFunction>) -> Self {
         Self {
             name,
             methods: Rc::new(methods),
@@ -42,11 +47,11 @@ impl LoxCallable for LoxClass {
 pub struct LoxInstance {
     name: String,
     properties: HashMap<String, Literal>,
-    methods: Rc<HashMap<String, Rc<dyn LoxCallable>>>,
+    methods: Rc<HashMap<String, LoxFunction>>,
 }
 
 impl LoxInstance {
-    pub fn new(name: String, methods: Rc<HashMap<String, Rc<dyn LoxCallable>>>) -> Self {
+    pub fn new(name: String, methods: Rc<HashMap<String, LoxFunction>>) -> Self {
         Self {
             name,
             properties: HashMap::new(),
@@ -62,7 +67,9 @@ impl LoxInstance {
         match self.properties.get(&token.lexeme) {
             Some(value) => Ok(value.to_owned()),
             None => match self.methods.get(&token.lexeme) {
-                Some(func) => Ok(Literal::Callable(func.to_owned())),
+                Some(func) => Ok(Literal::Callable(Rc::new(
+                    func.bind(Rc::new(RefCell::new(self.to_owned()))),
+                ))),
                 None => Err(RuntimeError::NameError(token.line, token.lexeme.to_owned())),
             },
         }

@@ -16,6 +16,7 @@ pub enum Expr {
     Call(Box<Expr>, Vec<Expr>, Token),
     Get(Box<Expr>, Token),
     Set(Box<Expr>, Token, Box<Expr>),
+    This(Token),
 }
 
 /// A struct that visits `Expr`
@@ -31,6 +32,7 @@ pub trait ExprVisitor<T> {
     fn visit_call(&mut self, callee: &Expr, arguments: &[Expr], closing: &Token) -> T;
     fn visit_get(&mut self, obj: &Expr, prop: &Token) -> T;
     fn visit_set(&mut self, obj: &Expr, prop: &Token, value: &Expr) -> T;
+    fn visit_this(&mut self, token: &Token) -> T;
 }
 
 impl Expr {
@@ -49,6 +51,7 @@ impl Expr {
             }
             Expr::Get(obj, prop) => visitor.visit_get(obj, prop),
             Expr::Set(obj, prop, value) => visitor.visit_set(obj, prop, value),
+            Expr::This(token) => visitor.visit_this(token),
         }
     }
 }

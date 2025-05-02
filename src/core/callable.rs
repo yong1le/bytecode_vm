@@ -10,7 +10,7 @@ use crate::{
     runtime::{environment::Environment, interpreter::Interpreter},
 };
 
-use super::{errors::RuntimeError, literal::Literal, token::Token};
+use super::{class::LoxInstance, errors::RuntimeError, literal::Literal, token::Token};
 
 pub trait LoxCallable: fmt::Debug {
     fn call(
@@ -65,6 +65,19 @@ impl LoxFunction {
             body,
             closure,
         }
+    }
+
+    pub fn bind(&self, this: Rc<RefCell<LoxInstance>>) -> LoxFunction {
+        let env = Environment::new_enclosed(&self.closure);
+        env.borrow_mut()
+            .define(&"this".to_string(), Literal::Instance(this));
+
+        LoxFunction::new(
+            self.name.clone(),
+            self.params.clone(),
+            self.body.clone(),
+            env,
+        )
     }
 }
 

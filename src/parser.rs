@@ -604,6 +604,7 @@ impl<'a> Parser<'a> {
                 self.consume(TokenType::RightParen)?;
                 Expr::Grouping(Box::new(expr))
             }
+            TokenType::This => Expr::This(t),
             _ => return Err(SyntaxError::ExpectedExpression(t.line, t.lexeme)),
         };
 

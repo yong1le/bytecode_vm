@@ -1,11 +1,7 @@
-{                                                
-  class Foo {                                    
-    returnSelf() {                               
-      // Should be able to return the class itsel
-      return Foo;                                
-    }                                            
-  }                                              
-                                                 
-  // Calling a method on an instance should work 
-  print Foo().returnSelf();                      
-}                                                
+class Spaceship {
+  identify() {
+    print this;
+  }
+}
+
+Spaceship().identify();

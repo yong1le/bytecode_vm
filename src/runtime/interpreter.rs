@@ -292,6 +292,10 @@ impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
             )),
         }
     }
+
+    fn visit_this(&mut self, token: &Token) -> Result<Literal, RuntimeError> {
+        self.visit_variable(token)
+    }
 }
 
 impl StmtVisitor<Result<(), RuntimeError>> for Interpreter {
@@ -378,7 +382,7 @@ impl StmtVisitor<Result<(), RuntimeError>> for Interpreter {
         Err(RuntimeError::ReturnValue(self.evaluate(expr)?))
     }
 
-    fn visit_decalre_class(
+    fn visit_declare_class(
         &mut self,
         id: &Token,
         methods: &[(Token, Vec<Token>, Vec<Stmt>)],
@@ -387,12 +391,12 @@ impl StmtVisitor<Result<(), RuntimeError>> for Interpreter {
         for method in methods {
             class_methods.insert(
                 method.0.lexeme.to_owned(),
-                Rc::new(LoxFunction::new(
+                LoxFunction::new(
                     format!("<fn {}>", method.0.lexeme),
                     method.1.to_owned(),
                     method.2.to_owned(),
                     self.env.clone(),
-                )) as Rc<dyn LoxCallable>,
+                ),
             );
         }
         let class = LoxClass::new(id.lexeme.to_string(), class_methods);
