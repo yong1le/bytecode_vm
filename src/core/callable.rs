@@ -46,7 +46,7 @@ impl LoxCallable for Clock {
 // User Functions
 #[derive(Debug, Clone)]
 pub struct LoxFunction {
-    id: Token,
+    name: String,
     params: Vec<Token>,
     body: Vec<Stmt>,
     closure: Rc<RefCell<Environment>>,
@@ -54,13 +54,13 @@ pub struct LoxFunction {
 
 impl LoxFunction {
     pub fn new(
-        id: Token,
+        name: String,
         params: Vec<Token>,
         body: Vec<Stmt>,
         closure: Rc<RefCell<Environment>>,
     ) -> Self {
         Self {
-            id,
+            name,
             params,
             body,
             closure,
@@ -92,6 +92,6 @@ impl LoxCallable for LoxFunction {
     }
 
     fn name(&self) -> &str {
-        &self.id.lexeme
+        &self.name
     }
 }

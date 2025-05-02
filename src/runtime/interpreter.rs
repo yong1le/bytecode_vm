@@ -361,7 +361,7 @@ impl StmtVisitor<Result<(), RuntimeError>> for Interpreter {
         body: &[Stmt],
     ) -> Result<(), RuntimeError> {
         let function = LoxFunction::new(
-            id.to_owned(),
+            format!("<fn {}>", id.lexeme),
             params.to_owned(),
             body.to_owned(),
             self.env.clone(),
@@ -388,7 +388,7 @@ impl StmtVisitor<Result<(), RuntimeError>> for Interpreter {
             class_methods.insert(
                 method.0.lexeme.to_owned(),
                 Rc::new(LoxFunction::new(
-                    method.0.to_owned(),
+                    format!("<fn {}>", method.0.lexeme),
                     method.1.to_owned(),
                     method.2.to_owned(),
                     self.env.clone(),
