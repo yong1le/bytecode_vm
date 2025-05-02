@@ -338,7 +338,7 @@ impl StmtVisitor<Result<(), RuntimeError>> for Interpreter {
         Ok(())
     }
 
-    fn visit_return(&mut self, expr: &Expr) -> Result<(), RuntimeError> {
+    fn visit_return(&mut self, expr: &Expr, _: &u32) -> Result<(), RuntimeError> {
         Err(RuntimeError::ReturnValue(self.evaluate(expr)?))
     }
 }

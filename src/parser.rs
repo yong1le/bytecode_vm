@@ -240,8 +240,8 @@ impl<'a> Parser<'a> {
                 self.for_stmt()
             }
             TokenType::Return => {
-                self.advance()?;
-                self.return_stmt()
+                let actual = self.advance()?;
+                self.return_stmt(actual.line)
             }
             _ => self.expression_stmt(),
         }
@@ -354,13 +354,13 @@ impl<'a> Parser<'a> {
         Ok(body)
     }
 
-    fn return_stmt(&mut self) -> Result<Stmt, SyntaxError> {
+    fn return_stmt(&mut self, line: u32) -> Result<Stmt, SyntaxError> {
         if self.consume(TokenType::Semicolon).is_ok() {
-            return Ok(Stmt::Return(Expr::Literal(Literal::Nil)));
+            return Ok(Stmt::Return(Expr::Literal(Literal::Nil), line));
         }
         let expr = self.expression()?;
         self.consume(TokenType::Semicolon)?;
-        Ok(Stmt::Return(expr))
+        Ok(Stmt::Return(expr, line))
     }
 
     fn expression_stmt(&mut self) -> Result<Stmt, SyntaxError> {

@@ -25,6 +25,7 @@ pub enum SyntaxError {
 pub enum SemanticError {
     UndeclaredLocalInInitializer(u32),
     AlreadyDeclared(u32, String),
+    TopReturn(u32),
 }
 
 /// Runtime errors that occur while executing the program.
@@ -116,6 +117,11 @@ impl fmt::Display for SemanticError {
                 f,
                 "[line {}] Error: Already a variable '{}' in this scope.",
                 line, id
+            ),
+            Self::TopReturn(line) => write!(
+                f,
+                "[line {}] Error at 'return': Can't return from top-level code.",
+                line
             ),
         }
     }

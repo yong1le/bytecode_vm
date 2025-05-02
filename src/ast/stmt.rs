@@ -14,7 +14,7 @@ pub enum Stmt {
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),
     While(Expr, Box<Stmt>),
     DeclareFunc(Token, Vec<Token>, Vec<Stmt>),
-    Return(Expr),
+    Return(Expr, u32),
 }
 
 /// A struct that visits `Stmt`
@@ -26,7 +26,7 @@ pub trait StmtVisitor<T> {
     fn visit_if(&mut self, condition: &Expr, if_block: &Stmt, else_block: &Option<Box<Stmt>>) -> T;
     fn visit_while(&mut self, condition: &Expr, while_block: &Stmt) -> T;
     fn visit_declare_func(&mut self, id: &Token, params: &[Token], body: &[Stmt]) -> T;
-    fn visit_return(&mut self, expr: &Expr) -> T;
+    fn visit_return(&mut self, expr: &Expr, line: &u32) -> T;
 }
 
 impl Stmt {
@@ -39,7 +39,7 @@ impl Stmt {
             Stmt::If(expr, if_block, else_block) => visiter.visit_if(expr, if_block, else_block),
             Stmt::While(expr, stmt) => visiter.visit_while(expr, stmt),
             Stmt::DeclareFunc(id, params, body) => visiter.visit_declare_func(id, params, body),
-            Stmt::Return(expr) => visiter.visit_return(expr),
+            Stmt::Return(expr, line) => visiter.visit_return(expr, line),
         }
     }
 }

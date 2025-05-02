@@ -12,6 +12,7 @@ use crate::{
 pub struct Resolver<'a> {
     interpreter: &'a mut Interpreter,
     scopes: Vec<HashMap<String, bool>>,
+    func_level: u32,
 }
 
 impl<'a> Resolver<'a> {
@@ -19,6 +20,7 @@ impl<'a> Resolver<'a> {
         Self {
             interpreter,
             scopes: Vec::new(),
+            func_level: 0,
         }
     }
 
@@ -48,10 +50,11 @@ impl<'a> Resolver<'a> {
             self.define(param);
         }
 
+        self.func_level += 1;
         for stmt in body {
             self.resolve_stmt(stmt)?;
         }
-
+        self.func_level -= 1;
         self.end_scope();
 
         Ok(())
@@ -226,7 +229,10 @@ impl StmtVisitor<Result<(), SemanticError>> for Resolver<'_> {
         Ok(())
     }
 
-    fn visit_return(&mut self, expr: &Expr) -> Result<(), SemanticError> {
+    fn visit_return(&mut self, expr: &Expr, line: &u32) -> Result<(), SemanticError> {
+        if self.func_level == 0 {
+            return Err(SemanticError::TopReturn(line.to_owned()));
+        }
         self.resolve_expr(expr)?;
         Ok(())
     }

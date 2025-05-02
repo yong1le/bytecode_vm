@@ -1,10 +1,13 @@
-for (var baz = 0; baz < 3; baz = baz + 1) 
-  print baz;
-
-{
-  var baz = 0;
-  while (baz < 3) {
-      print baz;
-      baz = baz + 1;
+fun foo() {
+  if (true) {
+    return "early return";
   }
+
+  for (var i = 0; i < 10; i = i + 1) {
+    return "loop return";
+  }
+}
+
+if (true) {
+  return "conditional return";
 }
