@@ -44,7 +44,7 @@ impl LoxCallable for Clock {
 }
 
 // User Functions
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LoxFunction {
     id: Token,
     params: Vec<Token>,

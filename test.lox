@@ -8,4 +8,4 @@ var d = DevonshireCream();
 
 d.hello = "hello";
 
-print d.hello;
+print d.serveOn();

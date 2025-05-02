@@ -1,9 +1,6 @@
 use std::{borrow::Cow, cell::RefCell, fmt, rc::Rc};
 
-use super::{
-    callable::LoxCallable,
-    class::{LoxClass, LoxInstance},
-};
+use super::{callable::LoxCallable, class::LoxInstance};
 
 /// The literal values that can be used by Lox.
 #[derive(Debug, Clone)]
@@ -12,7 +9,6 @@ pub enum Literal {
     Number(f64),
     Boolean(bool),
     Callable(Rc<dyn LoxCallable>),
-    Class(LoxClass),
     Instance(Rc<RefCell<LoxInstance>>),
     Nil,
 }
@@ -33,7 +29,6 @@ impl fmt::Display for Literal {
                 }
                 Literal::Boolean(a) => a.to_string(),
                 Literal::Callable(c) => format!("<fn {}>", c.name()),
-                Literal::Class(c) => c.name().to_string(),
                 Literal::Instance(c) => format!("{} instance", c.borrow().name()),
                 Literal::Nil => "nil".to_string(),
             }

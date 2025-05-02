@@ -255,6 +255,10 @@ impl StmtVisitor<Result<(), SemanticError>> for Resolver<'_> {
     ) -> Result<(), SemanticError> {
         self.declare(id)?;
         self.define(id);
+
+        for (_, params, body) in methods {
+            self.resolve_function(params, body)?;
+        }
         Ok(())
     }
 }

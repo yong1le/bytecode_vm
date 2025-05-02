@@ -231,7 +231,6 @@ impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
     ) -> Result<Literal, RuntimeError> {
         let c = match self.evaluate(callee)? {
             Literal::Callable(c) => c,
-            Literal::Class(c) => Rc::new(c) as Rc<dyn LoxCallable>,
             c => {
                 return Err(RuntimeError::TypeError(
                     closing.line,
@@ -384,11 +383,23 @@ impl StmtVisitor<Result<(), RuntimeError>> for Interpreter {
         id: &Token,
         methods: &[(Token, Vec<Token>, Vec<Stmt>)],
     ) -> Result<(), RuntimeError> {
-        let class = LoxClass::new(id.lexeme.to_string());
+        let mut class_methods = HashMap::new();
+        for method in methods {
+            class_methods.insert(
+                method.0.lexeme.to_owned(),
+                Rc::new(LoxFunction::new(
+                    method.0.to_owned(),
+                    method.1.to_owned(),
+                    method.2.to_owned(),
+                    self.env.clone(),
+                )) as Rc<dyn LoxCallable>,
+            );
+        }
+        let class = LoxClass::new(id.lexeme.to_string(), class_methods);
 
         self.env
             .borrow_mut()
-            .define(&id.lexeme, Literal::Class(class));
+            .define(&id.lexeme, Literal::Callable(Rc::new(class)));
 
         Ok(())
     }
