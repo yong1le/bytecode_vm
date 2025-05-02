@@ -26,6 +26,7 @@ pub enum SemanticError {
     UndeclaredLocalInInitializer(u32),
     AlreadyDeclared(u32, String),
     TopReturn(u32),
+    TopThis(u32),
 }
 
 /// Runtime errors that occur while executing the program.
@@ -124,6 +125,11 @@ impl fmt::Display for SemanticError {
             Self::TopReturn(line) => write!(
                 f,
                 "[line {}] Error at 'return': Can't return from top-level code.",
+                line
+            ),
+            Self::TopThis(line) => write!(
+                f,
+                "[line {}] Error at 'this': Can't use this outside of class methods.",
                 line
             ),
         }

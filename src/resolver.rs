@@ -13,6 +13,7 @@ pub struct Resolver<'a> {
     interpreter: &'a mut Interpreter,
     scopes: Vec<HashMap<String, bool>>,
     func_level: u32,
+    class_level: u32,
 }
 
 impl<'a> Resolver<'a> {
@@ -21,6 +22,7 @@ impl<'a> Resolver<'a> {
             interpreter,
             scopes: Vec::new(),
             func_level: 0,
+            class_level: 0,
         }
     }
 
@@ -174,6 +176,9 @@ impl ExprVisitor<Result<(), SemanticError>> for Resolver<'_> {
     }
 
     fn visit_this(&mut self, token: &Token) -> Result<(), SemanticError> {
+        if self.class_level == 0 {
+            return Err(SemanticError::TopThis(token.line));
+        }
         self.resolve_local(token.id, &token.lexeme);
         Ok(())
     }
@@ -267,9 +272,11 @@ impl StmtVisitor<Result<(), SemanticError>> for Resolver<'_> {
             scope.insert("this".to_string(), true);
         }
 
+        self.class_level += 1;
         for (_, params, body) in methods {
             self.resolve_function(params, body)?;
         }
+        self.class_level -= 1;
 
         self.end_scope();
         Ok(())
