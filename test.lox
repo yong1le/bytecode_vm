@@ -1,9 +1,10 @@
-fun fib(n) {
-  if (n == 0 or n == 1) {
-    return n;
+for (var baz = 0; baz < 3; baz = baz + 1) 
+  print baz;
+
+{
+  var baz = 0;
+  while (baz < 3) {
+      print baz;
+      baz = baz + 1;
   }
-
-  return fib(n - 1) + fib(n - 2);
 }
-
-print fib(10);

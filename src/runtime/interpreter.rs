@@ -20,7 +20,7 @@ pub struct Interpreter {
     /// The environment that holds global state.
     globals: Rc<RefCell<Environment>>,
     env: Rc<RefCell<Environment>>,
-    locals: HashMap<(TokenType, String, u32), u32>,
+    locals: HashMap<usize, u32>,
 }
 
 impl Interpreter {
@@ -79,8 +79,8 @@ impl Interpreter {
         }
     }
 
-    pub fn resolve(&mut self, token_type: TokenType, lexeme: String, line: u32, depth: u32) {
-        self.locals.insert((token_type, lexeme, line), depth);
+    pub fn resolve(&mut self, token_id: usize, depth: u32) {
+        self.locals.insert(token_id, depth);
     }
 }
 
@@ -170,10 +170,7 @@ impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
     }
 
     fn visit_variable(&mut self, id: &Token) -> Result<Literal, RuntimeError> {
-        let result = match self
-            .locals
-            .get(&(id.token.to_owned(), id.lexeme.to_owned(), id.line))
-        {
+        let result = match self.locals.get(&id.id) {
             Some(depth) => self.env.borrow().get_at(&id.lexeme, depth.to_owned()),
             None => self.globals.borrow().get(&id.lexeme),
         };
@@ -187,10 +184,7 @@ impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
     fn visit_assignment(&mut self, id: &Token, assignment: &Expr) -> Result<Literal, RuntimeError> {
         let literal = self.evaluate(assignment)?;
 
-        let result = match self
-            .locals
-            .get(&(id.token.to_owned(), id.lexeme.to_owned(), id.line))
-        {
+        let result = match self.locals.get(&id.id) {
             Some(depth) => {
                 self.env
                     .borrow_mut()

@@ -14,6 +14,8 @@ pub struct Scanner<'a> {
     eof: bool,
     /// Temporary store for a character that was skipped over.
     unget: Option<char>,
+    /// Current id for token
+    token_id: usize,
 }
 
 impl<'a> Scanner<'a> {
@@ -24,6 +26,7 @@ impl<'a> Scanner<'a> {
             line: 1,
             eof: false,
             unget: None,
+            token_id: 0,
         }
     }
 
@@ -199,6 +202,26 @@ impl<'a> Scanner<'a> {
             self.chars.peek()
         }
     }
+
+    fn add_token(
+        &mut self,
+        token: TokenType,
+        lexeme: String,
+        literal: Literal,
+        line: u32,
+    ) -> Token {
+        let token = Token {
+            token,
+            lexeme,
+            literal,
+            line,
+            id: self.token_id,
+        };
+
+        self.token_id += 1;
+
+        token
+    }
 }
 
 impl Iterator for Scanner<'_> {
@@ -214,12 +237,12 @@ impl Iterator for Scanner<'_> {
                     return None;
                 } else {
                     self.eof = true;
-                    return Some(Ok(Token {
-                        token: TokenType::Eof,
-                        lexeme: "".to_string(),
-                        literal: Literal::Nil,
-                        line: self.line,
-                    }));
+                    return Some(Ok(self.add_token(
+                        TokenType::Eof,
+                        "".to_string(),
+                        Literal::Nil,
+                        self.line,
+                    )));
                 }
             }
         };
@@ -277,12 +300,9 @@ impl Iterator for Scanner<'_> {
         };
 
         match result {
-            Ok((token, literal, lexeme)) => Some(Ok(Token {
-                token,
-                literal,
-                lexeme,
-                line: self.line,
-            })),
+            Ok((token, literal, lexeme)) => {
+                Some(Ok(self.add_token(token, lexeme, literal, self.line)))
+            }
             Err(e) => Some(Err(e)),
         }
     }

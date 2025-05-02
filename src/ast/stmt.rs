@@ -58,7 +58,13 @@ impl fmt::Display for Stmt {
                     None => "null".to_string(),
                 }
             ),
-            Stmt::Block(stmts) => write!(f, "(block {:?})", stmts),
+            Stmt::Block(stmts) => {
+                writeln!(f, "(block [")?;
+                for stmt in stmts {
+                    writeln!(f, "  {}", stmt)?;
+                }
+                write!(f, "])")
+            }
             Stmt::If(expr, if_block, else_block) => write!(
                 f,
                 "(if ({}) ({}) ({})",

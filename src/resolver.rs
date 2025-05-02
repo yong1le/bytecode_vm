@@ -5,11 +5,7 @@ use crate::{
         expr::{Expr, ExprVisitor},
         stmt::{Stmt, StmtVisitor},
     },
-    core::{
-        errors::SemanticError,
-        literal::Literal,
-        token::{Token, TokenType},
-    },
+    core::{errors::SemanticError, literal::Literal, token::Token},
     runtime::interpreter::Interpreter,
 };
 
@@ -34,15 +30,11 @@ impl<'a> Resolver<'a> {
         stmt.accept(self)
     }
 
-    fn resolve_local(&mut self, token_type: &TokenType, lexeme: &String, line: u32) {
+    fn resolve_local(&mut self, token_id: usize, lexeme: &str) {
         for (i, scope) in self.scopes.iter().enumerate().rev() {
             if scope.get(lexeme).is_some() {
-                self.interpreter.resolve(
-                    token_type.to_owned(),
-                    lexeme.to_owned(),
-                    line,
-                    (self.scopes.len() - 1 - i) as u32,
-                );
+                self.interpreter
+                    .resolve(token_id, (self.scopes.len() - 1 - i) as u32);
                 return;
             }
         }
@@ -127,15 +119,16 @@ impl ExprVisitor<Result<(), SemanticError>> for Resolver<'_> {
             if s.get(&id.lexeme) == Some(&false) {
                 return Err(SemanticError::UndeclaredLocalInInitializer(id.line));
             }
+            self.resolve_local(id.id, &id.lexeme);
+            Ok(())
+        } else {
+            Ok(())
         }
-
-        self.resolve_local(&id.token, &id.lexeme, id.line);
-        Ok(())
     }
 
     fn visit_assignment(&mut self, id: &Token, assignment: &Expr) -> Result<(), SemanticError> {
         self.resolve_expr(assignment)?;
-        self.resolve_local(&id.token, &id.lexeme, id.line);
+        self.resolve_local(id.id, &id.lexeme);
 
         Ok(())
     }
