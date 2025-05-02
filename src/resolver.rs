@@ -236,4 +236,14 @@ impl StmtVisitor<Result<(), SemanticError>> for Resolver<'_> {
         self.resolve_expr(expr)?;
         Ok(())
     }
+
+    fn visit_decalre_class(
+        &mut self,
+        id: &Token,
+        methods: &[(Token, Vec<Token>, Vec<Stmt>)],
+    ) -> Result<(), SemanticError> {
+        self.declare(id)?;
+        self.define(id);
+        Ok(())
+    }
 }

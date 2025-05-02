@@ -11,10 +11,11 @@ use crate::{
 };
 
 // program        →  declaration* EOF;
-// declaration    → varDecl | funcDecl | statement ;
+// declaration    → varDecl | funcDecl | classDecl | statement ;
 // funcDecl       → "fun" IDENTIFIER "(" parameters? ")" block ;
 // parameters     → IDENTIFIER ( "," IDENTIFIER )* ;
 // varDecl        → "var" IDENTIFIER ( "=" )? ";";
+// classDecl      → "class" IDENTIFIER "{" funcDecl* "}" ;
 // statement      → exprStmt | printStmt | if | for | while | block | return ;
 // block          → "{" declaration* "}"
 // exprStmt       → expression ";" '
@@ -159,6 +160,10 @@ impl<'a> Parser<'a> {
                 self.advance()?;
                 self.declare_func()
             }
+            TokenType::Class => {
+                self.advance()?;
+                self.declare_class()
+            }
             _ => self.statement(),
         }
     }
@@ -187,7 +192,7 @@ impl<'a> Parser<'a> {
             let t = self.peek()?;
 
             match t.token {
-                TokenType::RightParen => {
+                TokenType::RightParen | TokenType::Eof => {
                     break;
                 }
                 _ => {
@@ -213,6 +218,38 @@ impl<'a> Parser<'a> {
         };
 
         Ok(Stmt::DeclareFunc(identifier_token, params, body))
+    }
+
+    fn declare_class(&mut self) -> Result<Stmt, SyntaxError> {
+        let identifier_token = self.consume(TokenType::Identifier)?;
+        let mut methods = Vec::new();
+        self.consume(TokenType::LeftBrace)?;
+
+        loop {
+            let t = self.peek()?;
+
+            match t.token {
+                TokenType::RightBrace | TokenType::Eof => {
+                    break;
+                }
+                _ => {
+                    let method = self.declare_func()?;
+                    match method {
+                        Stmt::DeclareFunc(id, params, body) => {
+                            methods.push((id, params, body));
+                        }
+                        _ => {
+                            // This should never happen
+                            panic!("parser.decalre_func() did not return function statement.")
+                        }
+                    }
+                }
+            }
+        }
+
+        self.consume(TokenType::RightBrace)?;
+
+        Ok(Stmt::DeclareClass(identifier_token, methods))
     }
 
     fn statement(&mut self) -> Result<Stmt, SyntaxError> {
@@ -259,14 +296,7 @@ impl<'a> Parser<'a> {
         loop {
             let token = self.peek()?;
             match token.token {
-                TokenType::Eof => {
-                    return Err(SyntaxError::ExpectedChar(
-                        token.line,
-                        "EOF".to_string(),
-                        format!("{}", TokenType::Semicolon),
-                    ))
-                }
-                TokenType::RightBrace => break,
+                TokenType::RightBrace | TokenType::Eof => break,
                 _ => statements.push(self.declaration()?),
             }
         }
@@ -532,7 +562,7 @@ impl<'a> Parser<'a> {
                     let t = self.peek()?;
 
                     match t.token {
-                        TokenType::RightParen => {
+                        TokenType::RightParen | TokenType::Eof => {
                             break;
                         }
                         _ => {

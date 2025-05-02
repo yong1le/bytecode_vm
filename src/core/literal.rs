@@ -1,6 +1,6 @@
 use std::{borrow::Cow, fmt, rc::Rc};
 
-use super::callable::LoxCallable;
+use super::{callable::LoxCallable, class::LoxClass};
 
 /// The literal values that can be used by Lox.
 #[derive(Debug, Clone)]
@@ -9,6 +9,7 @@ pub enum Literal {
     Number(f64),
     Boolean(bool),
     Callable(Rc<dyn LoxCallable>),
+    Class(LoxClass),
     Nil,
 }
 
@@ -28,6 +29,7 @@ impl fmt::Display for Literal {
                 }
                 Literal::Boolean(a) => a.to_string(),
                 Literal::Callable(c) => format!("<fn {}>", c.name()),
+                Literal::Class(c) => c.name().to_string(),
                 Literal::Nil => "nil".to_string(),
             }
         )

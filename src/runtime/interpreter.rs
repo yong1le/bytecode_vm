@@ -7,6 +7,7 @@ use crate::{
     },
     core::{
         callable::{Clock, LoxFunction},
+        class::LoxClass,
         errors::RuntimeError,
         literal::Literal,
         token::{Token, TokenType},
@@ -340,5 +341,19 @@ impl StmtVisitor<Result<(), RuntimeError>> for Interpreter {
 
     fn visit_return(&mut self, expr: &Expr, _: &u32) -> Result<(), RuntimeError> {
         Err(RuntimeError::ReturnValue(self.evaluate(expr)?))
+    }
+
+    fn visit_decalre_class(
+        &mut self,
+        id: &Token,
+        methods: &[(Token, Vec<Token>, Vec<Stmt>)],
+    ) -> Result<(), RuntimeError> {
+        let class = LoxClass::new(id.lexeme.to_string());
+
+        self.env
+            .borrow_mut()
+            .define(&id.lexeme, Literal::Class(class));
+
+        Ok(())
     }
 }
