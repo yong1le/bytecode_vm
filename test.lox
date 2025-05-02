@@ -1,11 +1,11 @@
-class DevonshireCream {
-  serveOn() {
-    return "Scones";
-  }
-}
-
-var d = DevonshireCream();
-
-d.hello = "hello";
-
-print d.serveOn();
+{                                                
+  class Foo {                                    
+    returnSelf() {                               
+      // Should be able to return the class itsel
+      return Foo;                                
+    }                                            
+  }                                              
+                                                 
+  // Calling a method on an instance should work 
+  print Foo().returnSelf();                      
+}                                                

@@ -28,7 +28,7 @@ impl fmt::Display for Literal {
                     }
                 }
                 Literal::Boolean(a) => a.to_string(),
-                Literal::Callable(c) => format!("<fn {}>", c.name()),
+                Literal::Callable(c) => c.name().to_string(),
                 Literal::Instance(c) => format!("{} instance", c.borrow().name()),
                 Literal::Nil => "nil".to_string(),
             }
