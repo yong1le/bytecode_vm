@@ -1,3 +1,7 @@
-class Cldfd {}
+class DevonshireCream {
+  serveOn() {
+    return "Scones";
+  }
+}
 
-print Cldfd;
+print DevonshireCream();

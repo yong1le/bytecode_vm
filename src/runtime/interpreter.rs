@@ -6,7 +6,7 @@ use crate::{
         stmt::{Stmt, StmtVisitor},
     },
     core::{
-        callable::{Clock, LoxFunction},
+        callable::{Clock, LoxCallable, LoxFunction},
         class::LoxClass,
         errors::RuntimeError,
         literal::Literal,
@@ -231,6 +231,7 @@ impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
     ) -> Result<Literal, RuntimeError> {
         let c = match self.evaluate(callee)? {
             Literal::Callable(c) => c,
+            Literal::Class(c) => Rc::new(c) as Rc<dyn LoxCallable>,
             c => {
                 return Err(RuntimeError::TypeError(
                     closing.line,
