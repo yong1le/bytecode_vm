@@ -1,9 +1,17 @@
-class Doughnut {
-  cook() {
-    print "Fry until golden brown.";
-  }
-}
-
-class BostonCream < Doughnut {}
-
-BostonCream().cook();
+class Foo {
+   init() {
+     this.secret = 42;
+   }
+ }
+ 
+ // Bar is a subclass of Foo
+ class Bar < Foo {}
+ 
+ // Baz is a subclass of Bar
+ class Baz < Bar {}
+ 
+ var baz = Baz();
+ 
+ // Baz should inherit the constructor from Foo
+ // which should set the secret value to 42
+ print baz.secret;

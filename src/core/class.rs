@@ -36,17 +36,14 @@ impl LoxClass {
         })
     }
 
-    fn find_method(&self, method: &Token) -> Result<&LoxFunction, RuntimeError> {
-        match self.methods.get(&method.lexeme) {
-            Some(func) => Ok(func),
+    fn find_method(&self, method: &str) -> Option<&LoxFunction> {
+        match self.methods.get(method) {
+            Some(func) => Some(func),
             None => {
                 if let Some(parent) = &self.parent {
                     parent.find_method(method)
                 } else {
-                    Err(RuntimeError::NameError(
-                        method.line,
-                        method.lexeme.to_owned(),
-                    ))
+                    None
                 }
             }
         }
@@ -76,8 +73,7 @@ impl LoxCallable for LoxClass {
         // may execute this.x = x assignment expressions which borrow_mut `instance`
         // while it is still borrowed here
         let init = self
-            .methods
-            .get("init")
+            .find_method("init")
             .map(|init| init.bind(bind_instance));
 
         if let Some(init) = init {
@@ -119,8 +115,11 @@ impl LoxInstance {
         match self.properties.get(&token.lexeme) {
             Some(value) => Ok(value.to_owned()),
             None => {
-                let func = self.class.find_method(token)?;
-                Ok(Literal::Callable(Rc::new(func.bind(self_ref))))
+                if let Some(func) = self.class.find_method(&token.lexeme) {
+                    Ok(Literal::Callable(Rc::new(func.bind(self_ref))))
+                } else {
+                    Err(RuntimeError::NameError(token.line, token.lexeme.to_owned()))
+                }
             }
         }
     }
