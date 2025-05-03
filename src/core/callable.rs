@@ -50,6 +50,7 @@ pub struct LoxFunction {
     params: Rc<Vec<Token>>,
     body: Rc<Vec<Stmt>>,
     closure: Rc<RefCell<Environment>>,
+    is_initializer: bool,
 }
 
 impl LoxFunction {
@@ -58,12 +59,14 @@ impl LoxFunction {
         params: Rc<Vec<Token>>,
         body: Rc<Vec<Stmt>>,
         closure: Rc<RefCell<Environment>>,
+        is_initializer: bool,
     ) -> Self {
         Self {
             name,
             params,
             body,
             closure,
+            is_initializer,
         }
     }
 
@@ -78,6 +81,7 @@ impl LoxFunction {
             self.params.clone(),
             self.body.clone(),
             env,
+            self.is_initializer,
         )
     }
 }
@@ -95,8 +99,20 @@ impl LoxCallable for LoxFunction {
         }
 
         match interpreter.interpret_with_env(&self.body, env) {
-            Ok(()) => Ok(Literal::Nil),
-            Err(RuntimeError::ReturnValue(l)) => Ok(l),
+            Ok(()) => {
+                if self.is_initializer {
+                    Ok(self.closure.borrow().get("this").unwrap_or(Literal::Nil))
+                } else {
+                    Ok(Literal::Nil)
+                }
+            }
+            Err(RuntimeError::ReturnValue(l)) => {
+                if self.is_initializer {
+                    Ok(self.closure.borrow().get("this").unwrap_or(Literal::Nil))
+                } else {
+                    Ok(l)
+                }
+            }
             Err(e) => Err(e),
         }
     }

@@ -9,6 +9,7 @@ use itertools::{Either, Itertools};
 use std::env;
 use std::fs;
 use std::process::exit;
+use std::time::Instant;
 
 use interpreter::Interpreter;
 use parser::Parser;
@@ -102,6 +103,8 @@ fn main() {
             exit(exit_code);
         }
         "run" => {
+            let scanning = Instant::now();
+
             let scanner = Scanner::new(&file_contents);
             let parser = Parser::new(scanner);
 
@@ -109,6 +112,8 @@ fn main() {
                 Ok(v) => Either::Left(v),
                 Err(v) => Either::Right(v),
             });
+
+            eprintln!("Scanning and Parsing completed in {:?}", scanning.elapsed());
 
             // Return early if any syntax errors
             errs.iter().for_each(|e| {
@@ -122,6 +127,7 @@ fn main() {
             let mut resolver = Resolver::new(&mut interpreter);
 
             // First pass, resolve variable bindings
+            let resolving = Instant::now();
             statements
                 .iter()
                 .for_each(|stmt| match resolver.resolve_stmt(stmt) {
@@ -131,12 +137,14 @@ fn main() {
                         exit_code = 65;
                     }
                 });
+            eprintln!("Resolving completed in {:?}", resolving.elapsed());
 
             if exit_code != 0 {
                 exit(exit_code);
             }
 
             // Second pass, interpret statements
+            let interpreting = Instant::now();
             statements
                 .iter()
                 .for_each(|stmt| match interpreter.interpret(stmt) {
@@ -146,6 +154,7 @@ fn main() {
                         exit(70);
                     }
                 });
+            eprintln!("Interpreting completed in {:?}", interpreting.elapsed());
 
             exit(exit_code);
         }

@@ -51,7 +51,7 @@ impl Environment {
     }
 
     /// Gets the value of a variable from the environment, or any enclosing environment.
-    pub fn get(&self, id: &String) -> Option<Literal> {
+    pub fn get(&self, id: &str) -> Option<Literal> {
         if let Some(value) = self.values.get(id) {
             return Some(value.clone());
         }
@@ -63,7 +63,7 @@ impl Environment {
         None
     }
 
-    pub fn get_at(&self, id: &String, depth: u32) -> Option<Literal> {
+    pub fn get_at(&self, id: &str, depth: u32) -> Option<Literal> {
         if depth == 0 {
             self.get(id)
         } else {

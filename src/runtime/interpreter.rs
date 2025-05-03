@@ -94,10 +94,7 @@ impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
         match (&operator.token, self.evaluate(expr)?) {
             (TokenType::Bang, literal) => Ok(Literal::Boolean(!literal.is_truthy())),
             (TokenType::Minus, Literal::Number(num)) => Ok(Literal::Number(-num)),
-            (TokenType::Minus, _) => Err(RuntimeError::TypeError(
-                operator.line,
-                "Operand must be a number.".to_string(),
-            )),
+            (TokenType::Minus, _) => Err(RuntimeError::UnaryOperandMismatch(operator.line)),
             _ => Ok(Literal::Nil),
         }
     }
@@ -124,9 +121,9 @@ impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
                 TokenType::GreaterEqual => Ok(Literal::Boolean(n1 >= n2)),
                 TokenType::EqualEqual => Ok(Literal::Boolean(n1 == n2)),
                 TokenType::BangEqual => Ok(Literal::Boolean(n1 != n2)),
-                _ => Err(RuntimeError::TypeError(
+                _ => Err(RuntimeError::UnimplementedOperand(
                     operator.line,
-                    "Operand not implemented.".to_string(),
+                    operator.lexeme.to_string(),
                 )),
             },
             // +, ==, !=
@@ -134,34 +131,22 @@ impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
                 TokenType::Plus => Ok(Literal::String(s1 + s2)),
                 TokenType::EqualEqual => Ok(Literal::Boolean(s1 == s2)),
                 TokenType::BangEqual => Ok(Literal::Boolean(s1 != s2)),
-                _ => Err(RuntimeError::TypeError(
-                    operator.line,
-                    "Operands must be numbers.".to_string(),
-                )),
+                _ => Err(RuntimeError::BinaryOperandMismatch(operator.line)),
             },
             (Literal::Boolean(b1), Literal::Boolean(b2)) => match operator.token {
                 TokenType::EqualEqual => Ok(Literal::Boolean(b1 == b2)),
                 TokenType::BangEqual => Ok(Literal::Boolean(b1 != b2)),
-                _ => Err(RuntimeError::TypeError(
-                    operator.line,
-                    "Operands must be numbers.".to_string(),
-                )),
+                _ => Err(RuntimeError::BinaryOperandMismatch(operator.line)),
             },
             (Literal::Nil, Literal::Nil) => match operator.token {
                 TokenType::EqualEqual => Ok(Literal::Boolean(true)),
                 TokenType::BangEqual => Ok(Literal::Boolean(false)),
-                _ => Err(RuntimeError::TypeError(
-                    operator.line,
-                    "Operands must be numbers.".to_string(),
-                )),
+                _ => Err(RuntimeError::BinaryOperandMismatch(operator.line)),
             },
             _ => match operator.token {
                 TokenType::EqualEqual => Ok(Literal::Boolean(false)),
                 TokenType::BangEqual => Ok(Literal::Boolean(true)),
-                _ => Err(RuntimeError::TypeError(
-                    operator.line,
-                    "Operands must be numbers.".to_string(),
-                )),
+                _ => Err(RuntimeError::BinaryOperandMismatch(operator.line)),
             },
         }
     }
@@ -231,12 +216,7 @@ impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
     ) -> Result<Literal, RuntimeError> {
         let c = match self.evaluate(callee)? {
             Literal::Callable(c) => c,
-            c => {
-                return Err(RuntimeError::TypeError(
-                    closing.line,
-                    format!("{} is not callable.", c),
-                ))
-            }
+            c => return Err(RuntimeError::InvalidCall(closing.line, c.to_string())),
         };
 
         let mut processed_args = Vec::with_capacity(arguments.len());
@@ -245,13 +225,10 @@ impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
         }
 
         if processed_args.len() != c.arity() {
-            return Err(RuntimeError::TypeError(
+            return Err(RuntimeError::FunctionCallArityMismatch(
                 closing.line,
-                format!(
-                    "Expected {} arguments but got {}.",
-                    c.arity(),
-                    processed_args.len()
-                ),
+                c.arity(),
+                processed_args.len(),
             ));
         }
 
@@ -261,12 +238,10 @@ impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
     fn visit_get(&mut self, obj: &Expr, prop: &Token) -> Result<Literal, RuntimeError> {
         match self.evaluate(obj)? {
             Literal::Instance(instance) => instance.borrow().get(prop, Rc::clone(&instance)),
-            other => Err(RuntimeError::TypeError(
+            other => Err(RuntimeError::InvalidPropertyAccess(
                 prop.line,
-                format!(
-                    "Cannot access '{}' on non-instance value {}",
-                    prop.lexeme, other
-                ),
+                other.to_string(),
+                prop.lexeme.to_string(),
             )),
         }
     }
@@ -283,12 +258,10 @@ impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
                 instance.borrow_mut().set(prop, literal.to_owned());
                 Ok(literal)
             }
-            other => Err(RuntimeError::TypeError(
+            other => Err(RuntimeError::InvalidPropertyAccess(
                 prop.line,
-                format!(
-                    "Cannot access '{}' on non-instance value {}",
-                    prop.lexeme, other
-                ),
+                other.to_string(),
+                prop.lexeme.to_string(),
             )),
         }
     }
@@ -369,6 +342,7 @@ impl StmtVisitor<Result<(), RuntimeError>> for Interpreter {
             params.clone(),
             body.clone(),
             self.env.clone(),
+            false,
         );
 
         self.env
@@ -396,6 +370,7 @@ impl StmtVisitor<Result<(), RuntimeError>> for Interpreter {
                     method.1.clone(),
                     method.2.clone(),
                     self.env.clone(),
+                    method.0.lexeme == "init",
                 ),
             );
         }

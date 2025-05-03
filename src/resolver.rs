@@ -14,6 +14,7 @@ pub struct Resolver<'a> {
     scopes: Vec<HashMap<String, bool>>,
     func_level: u32,
     class_level: u32,
+    init_level: u32,
 }
 
 impl<'a> Resolver<'a> {
@@ -23,6 +24,7 @@ impl<'a> Resolver<'a> {
             scopes: Vec::new(),
             func_level: 0,
             class_level: 0,
+            init_level: 0,
         }
     }
 
@@ -254,6 +256,14 @@ impl StmtVisitor<Result<(), SemanticError>> for Resolver<'_> {
         if self.func_level == 0 {
             return Err(SemanticError::TopReturn(line.to_owned()));
         }
+
+        if self.init_level != 0 {
+            match expr {
+                Expr::Literal(Literal::Nil) => (),
+                _ => return Err(SemanticError::ReturnValueInInit(line.to_owned())),
+            }
+        }
+
         self.resolve_expr(expr)?;
         Ok(())
     }
@@ -273,8 +283,14 @@ impl StmtVisitor<Result<(), SemanticError>> for Resolver<'_> {
         }
 
         self.class_level += 1;
-        for (_, params, body) in methods {
+        for (name, params, body) in methods {
+            if name.lexeme == "init" {
+                self.init_level += 1;
+            }
             self.resolve_function(params, body)?;
+            if name.lexeme == "init" {
+                self.init_level -= 1;
+            }
         }
         self.class_level -= 1;
 

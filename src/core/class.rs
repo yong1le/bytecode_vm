@@ -1,5 +1,7 @@
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
+use crate::runtime::interpreter::Interpreter;
+
 use super::{
     callable::{LoxCallable, LoxFunction},
     errors::RuntimeError,
@@ -11,13 +13,20 @@ use super::{
 pub struct LoxClass {
     name: String,
     methods: Rc<HashMap<String, LoxFunction>>,
+    arity: usize,
 }
 
 impl LoxClass {
     pub fn new(name: String, methods: HashMap<String, LoxFunction>) -> Self {
+        let arity = match &methods.get("init") {
+            Some(init) => init.arity(),
+            None => 0,
+        };
+
         Self {
             name,
             methods: Rc::new(methods),
+            arity,
         }
     }
 }
@@ -29,17 +38,35 @@ impl LoxCallable for LoxClass {
 
     fn call(
         &self,
-        _: &mut crate::runtime::interpreter::Interpreter,
-        _: Vec<super::literal::Literal>,
-    ) -> Result<super::literal::Literal, super::errors::RuntimeError> {
-        Ok(Literal::Instance(Rc::new(RefCell::new(LoxInstance::new(
+        interpreter: &mut Interpreter,
+        args: Vec<Literal>,
+    ) -> Result<Literal, RuntimeError> {
+        let instance = Rc::new(RefCell::new(LoxInstance::new(
             self.name.to_string(),
             self.methods.clone(),
-        )))))
+        )));
+
+        // Clones the instance to give to the init method
+        let bind_instance = instance.clone();
+
+        // We must retrieve the function before calling it because the .call() fn
+        // may execute this.x = x assignment expressions which borrow_mut `instance`
+        // while it is still borrowed here
+        let init = instance
+            .borrow()
+            .methods
+            .get("init")
+            .map(|init| init.bind(bind_instance));
+
+        if let Some(init) = init {
+            init.call(interpreter, args)?;
+        };
+
+        Ok(Literal::Instance(instance))
     }
 
     fn arity(&self) -> usize {
-        0
+        self.arity
     }
 }
 

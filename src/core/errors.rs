@@ -27,13 +27,19 @@ pub enum SemanticError {
     AlreadyDeclared(u32, String),
     TopReturn(u32),
     TopThis(u32),
+    ReturnValueInInit(u32),
 }
 
 /// Runtime errors that occur while executing the program.
 #[derive(Debug, Clone)]
 pub enum RuntimeError {
-    TypeError(u32, String),
     NameError(u32, String),
+    UnaryOperandMismatch(u32),
+    BinaryOperandMismatch(u32),
+    UnimplementedOperand(u32, String),
+    InvalidCall(u32, String),
+    FunctionCallArityMismatch(u32, usize, usize),
+    InvalidPropertyAccess(u32, String, String),
     ReturnValue(Literal), // Used to return value from functions
 }
 
@@ -100,11 +106,34 @@ impl fmt::Display for SyntaxError {
 impl fmt::Display for RuntimeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            RuntimeError::TypeError(line, s) => write!(f, "[line {}] Error: {}", line, s),
             RuntimeError::NameError(line, s) => {
                 write!(f, "[line {}] Error: '{}' is not defined.", line, s)
             }
-            RuntimeError::ReturnValue(literal) => write!(f, "Returning {}", literal),
+            RuntimeError::UnaryOperandMismatch(line) => {
+                write!(f, "[line {}] Error: Operand must be a number.", line)
+            }
+            RuntimeError::BinaryOperandMismatch(line) => {
+                write!(f, "[line {}] Error: Both operands must be numbers.", line)
+            }
+            RuntimeError::UnimplementedOperand(line, op) => write!(
+                f,
+                "[line {}] Error at '{}': Operand unimplemented.",
+                op, line
+            ),
+            RuntimeError::InvalidCall(line, callable) => {
+                write!(f, "[line {}] Error: '{}' is not callable.", line, callable)
+            }
+            RuntimeError::FunctionCallArityMismatch(line, expected, actual) => write!(
+                f,
+                "[line {}] Error: Expected {} arguments but received {}.",
+                line, expected, actual
+            ),
+            RuntimeError::InvalidPropertyAccess(line, id, prop) => write!(
+                f,
+                "[line {}] Error: Cannot access '{}' on non-instance value '{}'.",
+                line, prop, id
+            ),
+            RuntimeError::ReturnValue(l) => write!(f, "Returning {}", l),
         }
     }
 }
@@ -112,24 +141,29 @@ impl fmt::Display for RuntimeError {
 impl fmt::Display for SemanticError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::UndeclaredLocalInInitializer(line) => write!(
+            SemanticError::UndeclaredLocalInInitializer(line) => write!(
                 f,
                 "[line {}] Error: Can't read local variable in its own initializer.",
                 line
             ),
-            Self::AlreadyDeclared(line, id) => write!(
+            SemanticError::AlreadyDeclared(line, id) => write!(
                 f,
                 "[line {}] Error: Already a variable '{}' in this scope.",
                 line, id
             ),
-            Self::TopReturn(line) => write!(
+            SemanticError::TopReturn(line) => write!(
                 f,
                 "[line {}] Error at 'return': Can't return from top-level code.",
                 line
             ),
-            Self::TopThis(line) => write!(
+            SemanticError::TopThis(line) => write!(
                 f,
                 "[line {}] Error at 'this': Can't use this outside of class methods.",
+                line
+            ),
+            SemanticError::ReturnValueInInit(line) => write!(
+                f,
+                "[line {}] Error at 'return': Cannot return value in a class constructor",
                 line
             ),
         }
