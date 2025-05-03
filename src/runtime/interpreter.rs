@@ -6,7 +6,7 @@ use crate::{
         stmt::{Stmt, StmtVisitor},
     },
     core::{
-        callable::{Clock, LoxCallable, LoxFunction},
+        callable::{Clock, LoxFunction},
         class::LoxClass,
         errors::RuntimeError,
         literal::Literal,
@@ -28,7 +28,7 @@ impl Interpreter {
     pub fn new() -> Self {
         let env = Environment::new();
         env.borrow_mut()
-            .define(&"clock".to_string(), Literal::Callable(Rc::new(Clock)));
+            .define("clock".to_string(), Literal::Callable(Rc::new(Clock)));
         Self {
             env: Rc::clone(&env),
             globals: env,
@@ -260,7 +260,7 @@ impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
 
     fn visit_get(&mut self, obj: &Expr, prop: &Token) -> Result<Literal, RuntimeError> {
         match self.evaluate(obj)? {
-            Literal::Instance(instance) => instance.borrow().get(prop),
+            Literal::Instance(instance) => instance.borrow().get(prop, Rc::clone(&instance)),
             other => Err(RuntimeError::TypeError(
                 prop.line,
                 format!(
@@ -322,7 +322,7 @@ impl StmtVisitor<Result<(), RuntimeError>> for Interpreter {
             None => Literal::Nil,
         };
 
-        self.env.borrow_mut().define(&id.lexeme, literal);
+        self.env.borrow_mut().define(id.lexeme.to_string(), literal);
         Ok(())
     }
 
@@ -361,19 +361,19 @@ impl StmtVisitor<Result<(), RuntimeError>> for Interpreter {
     fn visit_declare_func(
         &mut self,
         id: &Token,
-        params: &[Token],
-        body: &[Stmt],
+        params: &Rc<Vec<Token>>,
+        body: &Rc<Vec<Stmt>>,
     ) -> Result<(), RuntimeError> {
         let function = LoxFunction::new(
             format!("<fn {}>", id.lexeme),
-            params.to_owned(),
-            body.to_owned(),
+            params.clone(),
+            body.clone(),
             self.env.clone(),
         );
 
         self.env
             .borrow_mut()
-            .define(&id.lexeme, Literal::Callable(Rc::new(function)));
+            .define(id.lexeme.to_string(), Literal::Callable(Rc::new(function)));
 
         Ok(())
     }
@@ -385,16 +385,16 @@ impl StmtVisitor<Result<(), RuntimeError>> for Interpreter {
     fn visit_declare_class(
         &mut self,
         id: &Token,
-        methods: &[(Token, Vec<Token>, Vec<Stmt>)],
+        methods: &[(Token, Rc<Vec<Token>>, Rc<Vec<Stmt>>)],
     ) -> Result<(), RuntimeError> {
         let mut class_methods = HashMap::new();
-        for method in methods {
+        for method in methods.iter() {
             class_methods.insert(
                 method.0.lexeme.to_owned(),
                 LoxFunction::new(
                     format!("<fn {}>", method.0.lexeme),
-                    method.1.to_owned(),
-                    method.2.to_owned(),
+                    method.1.clone(),
+                    method.2.clone(),
                     self.env.clone(),
                 ),
             );
@@ -403,7 +403,7 @@ impl StmtVisitor<Result<(), RuntimeError>> for Interpreter {
 
         self.env
             .borrow_mut()
-            .define(&id.lexeme, Literal::Callable(Rc::new(class)));
+            .define(id.lexeme.to_string(), Literal::Callable(Rc::new(class)));
 
         Ok(())
     }

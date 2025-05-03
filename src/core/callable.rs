@@ -47,16 +47,16 @@ impl LoxCallable for Clock {
 #[derive(Debug, Clone)]
 pub struct LoxFunction {
     name: String,
-    params: Vec<Token>,
-    body: Vec<Stmt>,
+    params: Rc<Vec<Token>>,
+    body: Rc<Vec<Stmt>>,
     closure: Rc<RefCell<Environment>>,
 }
 
 impl LoxFunction {
     pub fn new(
         name: String,
-        params: Vec<Token>,
-        body: Vec<Stmt>,
+        params: Rc<Vec<Token>>,
+        body: Rc<Vec<Stmt>>,
         closure: Rc<RefCell<Environment>>,
     ) -> Self {
         Self {
@@ -67,10 +67,11 @@ impl LoxFunction {
         }
     }
 
+    /// Returns a new copy of function that is bound to a class `this`
     pub fn bind(&self, this: Rc<RefCell<LoxInstance>>) -> LoxFunction {
         let env = Environment::new_enclosed(&self.closure);
         env.borrow_mut()
-            .define(&"this".to_string(), Literal::Instance(this));
+            .define("this".to_string(), Literal::Instance(this));
 
         LoxFunction::new(
             self.name.clone(),
@@ -90,7 +91,7 @@ impl LoxCallable for LoxFunction {
         let env = Environment::new_enclosed(&self.closure);
 
         for arg in self.params.iter().zip(arguments) {
-            env.borrow_mut().define(&arg.0.lexeme, arg.1);
+            env.borrow_mut().define(arg.0.lexeme.to_string(), arg.1);
         }
 
         match interpreter.interpret_with_env(&self.body, env) {

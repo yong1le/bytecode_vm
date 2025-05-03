@@ -63,13 +63,16 @@ impl LoxInstance {
         &self.name
     }
 
-    pub fn get(&self, token: &Token) -> Result<Literal, RuntimeError> {
+    /// ref_self is the same as self, but captured inside a Rc<RefCell<>>
+    pub fn get(
+        &self,
+        token: &Token,
+        ref_self: Rc<RefCell<LoxInstance>>,
+    ) -> Result<Literal, RuntimeError> {
         match self.properties.get(&token.lexeme) {
             Some(value) => Ok(value.to_owned()),
             None => match self.methods.get(&token.lexeme) {
-                Some(func) => Ok(Literal::Callable(Rc::new(
-                    func.bind(Rc::new(RefCell::new(self.to_owned()))),
-                ))),
+                Some(func) => Ok(Literal::Callable(Rc::new(func.bind(ref_self)))),
                 None => Err(RuntimeError::NameError(token.line, token.lexeme.to_owned())),
             },
         }

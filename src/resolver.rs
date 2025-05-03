@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 use crate::{
     ast::{
@@ -240,8 +240,8 @@ impl StmtVisitor<Result<(), SemanticError>> for Resolver<'_> {
     fn visit_declare_func(
         &mut self,
         id: &Token,
-        params: &[Token],
-        body: &[Stmt],
+        params: &Rc<Vec<Token>>,
+        body: &Rc<Vec<Stmt>>,
     ) -> Result<(), SemanticError> {
         self.declare(id)?;
         self.define(id);
@@ -261,7 +261,7 @@ impl StmtVisitor<Result<(), SemanticError>> for Resolver<'_> {
     fn visit_declare_class(
         &mut self,
         id: &Token,
-        methods: &[(Token, Vec<Token>, Vec<Stmt>)],
+        methods: &[(Token, Rc<Vec<Token>>, Rc<Vec<Stmt>>)],
     ) -> Result<(), SemanticError> {
         self.declare(id)?;
         self.define(id);

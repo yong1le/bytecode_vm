@@ -46,8 +46,8 @@ impl Environment {
     }
 
     /// Defines a variable in the environment.
-    pub fn define(&mut self, id: &String, value: Literal) {
-        self.values.insert(id.to_owned(), value);
+    pub fn define(&mut self, id: String, value: Literal) {
+        self.values.insert(id, value);
     }
 
     /// Gets the value of a variable from the environment, or any enclosing environment.

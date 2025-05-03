@@ -1,4 +1,4 @@
-use std::{iter::Peekable, vec};
+use std::{iter::Peekable, rc::Rc, vec};
 
 use crate::{
     ast::{expr::Expr, stmt::Stmt},
@@ -217,7 +217,11 @@ impl<'a> Parser<'a> {
             }
         };
 
-        Ok(Stmt::DeclareFunc(identifier_token, params, body))
+        Ok(Stmt::DeclareFunc(
+            identifier_token,
+            Rc::new(params),
+            Rc::new(body),
+        ))
     }
 
     fn declare_class(&mut self) -> Result<Stmt, SyntaxError> {

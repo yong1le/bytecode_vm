@@ -1,4 +1,5 @@
 use core::fmt;
+use std::rc::Rc;
 
 use crate::core::token::Token;
 
@@ -13,9 +14,9 @@ pub enum Stmt {
     Block(Vec<Stmt>),
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),
     While(Expr, Box<Stmt>),
-    DeclareFunc(Token, Vec<Token>, Vec<Stmt>),
+    DeclareFunc(Token, Rc<Vec<Token>>, Rc<Vec<Stmt>>),
     Return(Expr, u32),
-    DeclareClass(Token, Vec<(Token, Vec<Token>, Vec<Stmt>)>),
+    DeclareClass(Token, Vec<(Token, Rc<Vec<Token>>, Rc<Vec<Stmt>>)>),
 }
 
 /// A struct that visits `Stmt`
@@ -26,9 +27,18 @@ pub trait StmtVisitor<T> {
     fn visit_block(&mut self, statements: &[Stmt]) -> T;
     fn visit_if(&mut self, condition: &Expr, if_block: &Stmt, else_block: &Option<Box<Stmt>>) -> T;
     fn visit_while(&mut self, condition: &Expr, while_block: &Stmt) -> T;
-    fn visit_declare_func(&mut self, id: &Token, params: &[Token], body: &[Stmt]) -> T;
+    fn visit_declare_func(
+        &mut self,
+        id: &Token,
+        params: &Rc<Vec<Token>>,
+        body: &Rc<Vec<Stmt>>,
+    ) -> T;
     fn visit_return(&mut self, expr: &Expr, line: &u32) -> T;
-    fn visit_declare_class(&mut self, id: &Token, methods: &[(Token, Vec<Token>, Vec<Stmt>)]) -> T;
+    fn visit_declare_class(
+        &mut self,
+        id: &Token,
+        methods: &[(Token, Rc<Vec<Token>>, Rc<Vec<Stmt>>)],
+    ) -> T;
 }
 
 impl Stmt {
