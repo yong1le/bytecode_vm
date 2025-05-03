@@ -616,6 +616,12 @@ impl<'a> Parser<'a> {
                 Expr::Grouping(Box::new(expr))
             }
             TokenType::This => Expr::This(t),
+            TokenType::Super => {
+                self.consume(TokenType::Dot)?;
+                let prop = self.consume(TokenType::Identifier)?;
+
+                Expr::Super(t, prop)
+            }
             _ => return Err(SyntaxError::ExpectedExpression(t.line, t.lexeme)),
         };
 

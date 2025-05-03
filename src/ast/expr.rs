@@ -17,6 +17,7 @@ pub enum Expr {
     Get(Box<Expr>, Token),
     Set(Box<Expr>, Token, Box<Expr>),
     This(Token),
+    Super(Token, Token),
 }
 
 /// A struct that visits `Expr`
@@ -33,6 +34,7 @@ pub trait ExprVisitor<T> {
     fn visit_get(&mut self, obj: &Expr, prop: &Token) -> T;
     fn visit_set(&mut self, obj: &Expr, prop: &Token, value: &Expr) -> T;
     fn visit_this(&mut self, token: &Token) -> T;
+    fn visit_super(&mut self, super_token: &Token, prop: &Token) -> T;
 }
 
 impl Expr {
@@ -52,6 +54,7 @@ impl Expr {
             Expr::Get(obj, prop) => visitor.visit_get(obj, prop),
             Expr::Set(obj, prop, value) => visitor.visit_set(obj, prop, value),
             Expr::This(token) => visitor.visit_this(token),
+            Expr::Super(super_token, prop) => visitor.visit_super(super_token, prop),
         }
     }
 }

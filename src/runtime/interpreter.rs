@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, fs::Metadata, rc::Rc};
 
 use crate::{
     ast::{
@@ -289,6 +289,45 @@ impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
     fn visit_this(&mut self, token: &Token) -> Result<Literal, RuntimeError> {
         self.visit_variable(token)
     }
+
+    fn visit_super(&mut self, super_token: &Token, prop: &Token) -> Result<Literal, RuntimeError> {
+        let (superclass, invoker) = match self.locals.get(&super_token.id) {
+            Some(depth) => {
+                let superclass = self
+                    .env
+                    .borrow()
+                    .get_at(&super_token.lexeme, depth.to_owned());
+
+                let invoker = self.env.borrow().get_at("this", depth.to_owned() - 1);
+
+                (superclass, invoker)
+            }
+            None => {
+                return Err(RuntimeError::NameError(
+                    super_token.line,
+                    "super".to_string(),
+                ))
+            }
+        };
+
+        match (superclass, invoker) {
+            (Some(Literal::Class(c)), Some(Literal::Instance(i))) => {
+                let method = c.find_method(&prop.lexeme);
+
+                match method {
+                    Some(m) => Ok(Literal::Callable(Rc::new(m.bind(i)))),
+                    None => Err(RuntimeError::NameError(
+                        super_token.line,
+                        "super".to_string(),
+                    )),
+                }
+            }
+            _ => Err(RuntimeError::NameError(
+                super_token.line,
+                "super".to_string(),
+            )),
+        }
+    }
 }
 
 impl StmtVisitor<Result<(), RuntimeError>> for Interpreter {
@@ -398,6 +437,16 @@ impl StmtVisitor<Result<(), RuntimeError>> for Interpreter {
             None
         };
 
+        let env = match &superclass {
+            Some(superclass) => {
+                let env = Environment::new_enclosed(&self.env);
+                env.borrow_mut()
+                    .define("super".to_string(), Literal::Class(superclass.clone()));
+                env
+            }
+            None => self.env.clone(),
+        };
+
         let mut class_methods = HashMap::new();
         for method in methods.iter() {
             class_methods.insert(
@@ -406,7 +455,7 @@ impl StmtVisitor<Result<(), RuntimeError>> for Interpreter {
                     method.0.lexeme.clone(),
                     method.1.clone(),
                     method.2.clone(),
-                    self.env.clone(),
+                    env.clone(),
                     method.0.lexeme == "init",
                 ),
             );

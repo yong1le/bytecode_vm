@@ -98,6 +98,7 @@ impl fmt::Display for SyntaxError {
                         Expr::Get(_, _) => "a property",
                         Expr::Set(_, _, _) => "a property",
                         Expr::This(_) => "a variable",
+                        Expr::Super(_, _) => "a property",
                     }
                 )
             }

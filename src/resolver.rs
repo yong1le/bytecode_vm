@@ -184,6 +184,11 @@ impl ExprVisitor<Result<(), SemanticError>> for Resolver<'_> {
         self.resolve_local(token.id, &token.lexeme);
         Ok(())
     }
+
+    fn visit_super(&mut self, super_token: &Token, _: &Token) -> Result<(), SemanticError> {
+        self.resolve_local(super_token.id, &super_token.lexeme);
+        Ok(())
+    }
 }
 
 impl StmtVisitor<Result<(), SemanticError>> for Resolver<'_> {
@@ -285,10 +290,15 @@ impl StmtVisitor<Result<(), SemanticError>> for Resolver<'_> {
                 ));
             } else {
                 self.visit_variable(parent)?;
-            }
-        }
 
-        self.begin_scope();
+                self.begin_scope();
+                if let Some(scope) = self.scopes.last_mut() {
+                    scope.insert("super".to_string(), true);
+                }
+            }
+        } else {
+            self.begin_scope();
+        }
 
         if let Some(scope) = self.scopes.last_mut() {
             scope.insert("this".to_string(), true);

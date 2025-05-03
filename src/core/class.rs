@@ -36,7 +36,7 @@ impl LoxClass {
         })
     }
 
-    fn find_method(&self, method: &str) -> Option<&LoxFunction> {
+    pub fn find_method(&self, method: &str) -> Option<&LoxFunction> {
         match self.methods.get(method) {
             Some(func) => Some(func),
             None => {
