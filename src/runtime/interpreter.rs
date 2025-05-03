@@ -87,7 +87,12 @@ impl Interpreter {
 
 impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
     fn visit_literal(&mut self, literal: &Literal) -> Result<Literal, RuntimeError> {
-        Ok(literal.to_owned())
+        match literal {
+            Literal::Callable(c) => Ok(Literal::Callable(c.clone())),
+            Literal::Class(c) => Ok(Literal::Class(c.clone())),
+            Literal::Instance(i) => Ok(Literal::Instance(i.clone())),
+            l => Ok(l.to_owned()),
+        }
     }
 
     fn visit_unary(&mut self, operator: &Token, expr: &Expr) -> Result<Literal, RuntimeError> {
@@ -214,8 +219,15 @@ impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
         arguments: &[Expr],
         closing: &Token,
     ) -> Result<Literal, RuntimeError> {
+        let mut class_call = false;
+        let mut class_ref = None;
         let c = match self.evaluate(callee)? {
             Literal::Callable(c) => c,
+            Literal::Class(c) => {
+                class_call = true;
+                class_ref = Some(c.clone());
+                c
+            }
             c => return Err(RuntimeError::InvalidCall(closing.line, c.to_string())),
         };
 
@@ -230,6 +242,14 @@ impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
                 c.arity(),
                 processed_args.len(),
             ));
+        }
+
+        // In classes, the last argument in the init function will always
+        // be the Rc reference of the class itself, so we can pass it to the instance
+        if let Some(class_ref) = class_ref {
+            if class_call {
+                processed_args.push(Literal::Class(class_ref));
+            }
         }
 
         c.call(self, processed_args)
@@ -338,7 +358,7 @@ impl StmtVisitor<Result<(), RuntimeError>> for Interpreter {
         body: &Rc<Vec<Stmt>>,
     ) -> Result<(), RuntimeError> {
         let function = LoxFunction::new(
-            format!("<fn {}>", id.lexeme),
+            id.lexeme.clone(),
             params.clone(),
             body.clone(),
             self.env.clone(),
@@ -359,14 +379,31 @@ impl StmtVisitor<Result<(), RuntimeError>> for Interpreter {
     fn visit_declare_class(
         &mut self,
         id: &Token,
+        parent: &Option<Token>,
         methods: &[(Token, Rc<Vec<Token>>, Rc<Vec<Stmt>>)],
     ) -> Result<(), RuntimeError> {
+        let superclass = if let Some(parent) = parent {
+            let superclass = self.visit_variable(parent)?;
+            match superclass {
+                Literal::Class(class) => Some(class),
+                _ => {
+                    return Err(RuntimeError::InheritFromNonClass(
+                        id.line,
+                        id.lexeme.to_string(),
+                        parent.lexeme.to_string(),
+                    ))
+                }
+            }
+        } else {
+            None
+        };
+
         let mut class_methods = HashMap::new();
         for method in methods.iter() {
             class_methods.insert(
                 method.0.lexeme.to_owned(),
                 LoxFunction::new(
-                    format!("<fn {}>", method.0.lexeme),
+                    method.0.lexeme.clone(),
                     method.1.clone(),
                     method.2.clone(),
                     self.env.clone(),
@@ -374,11 +411,11 @@ impl StmtVisitor<Result<(), RuntimeError>> for Interpreter {
                 ),
             );
         }
-        let class = LoxClass::new(id.lexeme.to_string(), class_methods);
+        let class = LoxClass::new(id.lexeme.to_string(), superclass, class_methods);
 
         self.env
             .borrow_mut()
-            .define(id.lexeme.to_string(), Literal::Callable(Rc::new(class)));
+            .define(id.lexeme.to_string(), Literal::Class(class));
 
         Ok(())
     }

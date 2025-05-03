@@ -12,21 +12,43 @@ use super::{
 #[derive(Clone, Debug)]
 pub struct LoxClass {
     name: String,
-    methods: Rc<HashMap<String, LoxFunction>>,
+    parent: Option<Rc<LoxClass>>,
+    methods: HashMap<String, LoxFunction>,
     arity: usize,
 }
 
 impl LoxClass {
-    pub fn new(name: String, methods: HashMap<String, LoxFunction>) -> Self {
+    pub fn new(
+        name: String,
+        parent: Option<Rc<LoxClass>>,
+        methods: HashMap<String, LoxFunction>,
+    ) -> Rc<Self> {
         let arity = match &methods.get("init") {
             Some(init) => init.arity(),
             None => 0,
         };
 
-        Self {
+        Rc::new(Self {
             name,
-            methods: Rc::new(methods),
+            parent,
+            methods,
             arity,
+        })
+    }
+
+    fn find_method(&self, method: &Token) -> Result<&LoxFunction, RuntimeError> {
+        match self.methods.get(&method.lexeme) {
+            Some(func) => Ok(func),
+            None => {
+                if let Some(parent) = &self.parent {
+                    parent.find_method(method)
+                } else {
+                    Err(RuntimeError::NameError(
+                        method.line,
+                        method.lexeme.to_owned(),
+                    ))
+                }
+            }
         }
     }
 }
@@ -39,12 +61,13 @@ impl LoxCallable for LoxClass {
     fn call(
         &self,
         interpreter: &mut Interpreter,
-        args: Vec<Literal>,
+        mut args: Vec<Literal>,
     ) -> Result<Literal, RuntimeError> {
-        let instance = Rc::new(RefCell::new(LoxInstance::new(
-            self.name.to_string(),
-            self.methods.clone(),
-        )));
+        // The last argument will always be an Rc reference to self
+        let instance = match args.pop() {
+            Some(Literal::Class(self_ref)) => Rc::new(RefCell::new(LoxInstance::new(self_ref))),
+            _ => panic!("LoxClass() called without Rc<LoxClass> as the last argument"),
+        };
 
         // Clones the instance to give to the init method
         let bind_instance = instance.clone();
@@ -52,8 +75,7 @@ impl LoxCallable for LoxClass {
         // We must retrieve the function before calling it because the .call() fn
         // may execute this.x = x assignment expressions which borrow_mut `instance`
         // while it is still borrowed here
-        let init = instance
-            .borrow()
+        let init = self
             .methods
             .get("init")
             .map(|init| init.bind(bind_instance));
@@ -70,38 +92,36 @@ impl LoxCallable for LoxClass {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone)]
 pub struct LoxInstance {
-    name: String,
+    class: Rc<LoxClass>,
     properties: HashMap<String, Literal>,
-    methods: Rc<HashMap<String, LoxFunction>>,
 }
 
 impl LoxInstance {
-    pub fn new(name: String, methods: Rc<HashMap<String, LoxFunction>>) -> Self {
+    pub fn new(class: Rc<LoxClass>) -> Self {
         Self {
-            name,
             properties: HashMap::new(),
-            methods,
+            class,
         }
     }
 
     pub fn name(&self) -> &str {
-        &self.name
+        &self.class.name
     }
 
     /// ref_self is the same as self, but captured inside a Rc<RefCell<>>
     pub fn get(
         &self,
         token: &Token,
-        ref_self: Rc<RefCell<LoxInstance>>,
+        self_ref: Rc<RefCell<LoxInstance>>,
     ) -> Result<Literal, RuntimeError> {
         match self.properties.get(&token.lexeme) {
             Some(value) => Ok(value.to_owned()),
-            None => match self.methods.get(&token.lexeme) {
-                Some(func) => Ok(Literal::Callable(Rc::new(func.bind(ref_self)))),
-                None => Err(RuntimeError::NameError(token.line, token.lexeme.to_owned())),
-            },
+            None => {
+                let func = self.class.find_method(token)?;
+                Ok(Literal::Callable(Rc::new(func.bind(self_ref))))
+            }
         }
     }
 

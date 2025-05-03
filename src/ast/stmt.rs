@@ -16,7 +16,11 @@ pub enum Stmt {
     While(Expr, Box<Stmt>),
     DeclareFunc(Token, Rc<Vec<Token>>, Rc<Vec<Stmt>>),
     Return(Expr, u32),
-    DeclareClass(Token, Vec<(Token, Rc<Vec<Token>>, Rc<Vec<Stmt>>)>),
+    DeclareClass(
+        Token,
+        Option<Token>,
+        Vec<(Token, Rc<Vec<Token>>, Rc<Vec<Stmt>>)>,
+    ),
 }
 
 /// A struct that visits `Stmt`
@@ -37,6 +41,7 @@ pub trait StmtVisitor<T> {
     fn visit_declare_class(
         &mut self,
         id: &Token,
+        parent: &Option<Token>,
         methods: &[(Token, Rc<Vec<Token>>, Rc<Vec<Stmt>>)],
     ) -> T;
 }
@@ -52,7 +57,9 @@ impl Stmt {
             Stmt::While(expr, stmt) => visiter.visit_while(expr, stmt),
             Stmt::DeclareFunc(id, params, body) => visiter.visit_declare_func(id, params, body),
             Stmt::Return(expr, line) => visiter.visit_return(expr, line),
-            Stmt::DeclareClass(id, methods) => visiter.visit_declare_class(id, methods),
+            Stmt::DeclareClass(id, parent, methods) => {
+                visiter.visit_declare_class(id, parent, methods)
+            }
         }
     }
 }
@@ -89,7 +96,7 @@ impl fmt::Display for Stmt {
                 }
             ),
             Stmt::While(expr, while_block) => write!(f, "(while ({}) ({}))", expr, while_block),
-            Stmt::DeclareClass(id, _) => write!(f, "{}", id.lexeme),
+            Stmt::DeclareClass(id, _, _) => write!(f, "{}", id.lexeme),
             _ => todo!(),
         }
     }

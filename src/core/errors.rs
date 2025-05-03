@@ -28,6 +28,7 @@ pub enum SemanticError {
     TopReturn(u32),
     TopThis(u32),
     ReturnValueInInit(u32),
+    SelfInheritance(u32, String),
 }
 
 /// Runtime errors that occur while executing the program.
@@ -40,6 +41,7 @@ pub enum RuntimeError {
     InvalidCall(u32, String),
     FunctionCallArityMismatch(u32, usize, usize),
     InvalidPropertyAccess(u32, String, String),
+    InheritFromNonClass(u32, String, String),
     ReturnValue(Literal), // Used to return value from functions
 }
 
@@ -133,6 +135,11 @@ impl fmt::Display for RuntimeError {
                 "[line {}] Error: Cannot access '{}' on non-instance value '{}'.",
                 line, prop, id
             ),
+            RuntimeError::InheritFromNonClass(line, class, parent) => write!(
+                f,
+                "[line {}] Error: '{}' attempting to inherit from non-class '{}'",
+                line, class, parent
+            ),
             RuntimeError::ReturnValue(l) => write!(f, "Returning {}", l),
         }
     }
@@ -165,6 +172,11 @@ impl fmt::Display for SemanticError {
                 f,
                 "[line {}] Error at 'return': Cannot return value in a class constructor",
                 line
+            ),
+            SemanticError::SelfInheritance(line, id) => write!(
+                f,
+                "[line {}] Error '{}': A class cannot inherit from itself.",
+                line, id
             ),
         }
     }

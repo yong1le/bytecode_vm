@@ -15,7 +15,7 @@ use crate::{
 // funcDecl       → "fun" IDENTIFIER "(" parameters? ")" block ;
 // parameters     → IDENTIFIER ( "," IDENTIFIER )* ;
 // varDecl        → "var" IDENTIFIER ( "=" )? ";";
-// classDecl      → "class" IDENTIFIER "{" funcDecl* "}" ;
+// classDecl      → "class" IDENTIFIER ( "<" IDENTIFIER )? "{" funcDecl* "}" ;
 // statement      → exprStmt | printStmt | if | for | while | block | return ;
 // block          → "{" declaration* "}"
 // exprStmt       → expression ";" '
@@ -227,6 +227,13 @@ impl<'a> Parser<'a> {
     fn declare_class(&mut self) -> Result<Stmt, SyntaxError> {
         let identifier_token = self.consume(TokenType::Identifier)?;
         let mut methods = Vec::new();
+
+        let superclass = if self.consume(TokenType::LessThan).is_ok() {
+            Some(self.consume(TokenType::Identifier)?)
+        } else {
+            None
+        };
+
         self.consume(TokenType::LeftBrace)?;
 
         loop {
@@ -253,7 +260,7 @@ impl<'a> Parser<'a> {
 
         self.consume(TokenType::RightBrace)?;
 
-        Ok(Stmt::DeclareClass(identifier_token, methods))
+        Ok(Stmt::DeclareClass(identifier_token, superclass, methods))
     }
 
     fn statement(&mut self) -> Result<Stmt, SyntaxError> {

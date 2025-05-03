@@ -271,10 +271,22 @@ impl StmtVisitor<Result<(), SemanticError>> for Resolver<'_> {
     fn visit_declare_class(
         &mut self,
         id: &Token,
+        parent: &Option<Token>,
         methods: &[(Token, Rc<Vec<Token>>, Rc<Vec<Stmt>>)],
     ) -> Result<(), SemanticError> {
         self.declare(id)?;
         self.define(id);
+
+        if let Some(parent) = parent {
+            if parent.lexeme == id.lexeme {
+                return Err(SemanticError::SelfInheritance(
+                    id.line,
+                    id.lexeme.to_string(),
+                ));
+            } else {
+                self.visit_variable(parent)?;
+            }
+        }
 
         self.begin_scope();
 
