@@ -15,6 +15,7 @@ pub struct Resolver<'a> {
     func_level: u32,
     class_level: u32,
     init_level: u32,
+    subclass_level: u32,
 }
 
 impl<'a> Resolver<'a> {
@@ -25,6 +26,7 @@ impl<'a> Resolver<'a> {
             func_level: 0,
             class_level: 0,
             init_level: 0,
+            subclass_level: 0,
         }
     }
 
@@ -186,6 +188,13 @@ impl ExprVisitor<Result<(), SemanticError>> for Resolver<'_> {
     }
 
     fn visit_super(&mut self, super_token: &Token, _: &Token) -> Result<(), SemanticError> {
+        if self.class_level == 0 {
+            return Err(SemanticError::TopSuper(super_token.line));
+        }
+        if self.subclass_level == 0 {
+            return Err(SemanticError::TopClassSuper(super_token.line));
+        }
+
         self.resolve_local(super_token.id, &super_token.lexeme);
         Ok(())
     }
@@ -282,6 +291,7 @@ impl StmtVisitor<Result<(), SemanticError>> for Resolver<'_> {
         self.declare(id)?;
         self.define(id);
 
+        let mut in_subclass = false;
         if let Some(parent) = parent {
             if parent.lexeme == id.lexeme {
                 return Err(SemanticError::SelfInheritance(
@@ -295,6 +305,9 @@ impl StmtVisitor<Result<(), SemanticError>> for Resolver<'_> {
                 if let Some(scope) = self.scopes.last_mut() {
                     scope.insert("super".to_string(), true);
                 }
+
+                in_subclass = true;
+                self.subclass_level += 1;
             }
         } else {
             self.begin_scope();
@@ -315,6 +328,9 @@ impl StmtVisitor<Result<(), SemanticError>> for Resolver<'_> {
             }
         }
         self.class_level -= 1;
+        if in_subclass {
+            self.subclass_level -= 1;
+        }
 
         self.end_scope();
         Ok(())

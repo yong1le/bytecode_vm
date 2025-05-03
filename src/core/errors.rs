@@ -29,6 +29,8 @@ pub enum SemanticError {
     TopThis(u32),
     ReturnValueInInit(u32),
     SelfInheritance(u32, String),
+    TopSuper(u32),
+    TopClassSuper(u32),
 }
 
 /// Runtime errors that occur while executing the program.
@@ -178,6 +180,16 @@ impl fmt::Display for SemanticError {
                 f,
                 "[line {}] Error '{}': A class cannot inherit from itself.",
                 line, id
+            ),
+            SemanticError::TopSuper(line) => write!(
+                f,
+                "[line {}] Error at 'super': Can't 'super' in top-level code.",
+                line
+            ),
+            SemanticError::TopClassSuper(line) => write!(
+                f,
+                "[line {}] Error at 'super': Can't use 'super' in class without a parent.",
+                line
             ),
         }
     }
