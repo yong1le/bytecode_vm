@@ -20,7 +20,10 @@ use super::environment::Environment;
 pub struct Interpreter {
     /// The environment that holds global state.
     globals: Rc<RefCell<Environment>>,
+    /// The environment of belonging to the current scope of execution. May change during
+    /// execution.
     env: Rc<RefCell<Environment>>,
+    /// A map that binds `Token.id` to its an environment.
     locals: HashMap<usize, u32>,
 }
 
@@ -176,10 +179,7 @@ impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
                     .borrow_mut()
                     .assign_at(&id.lexeme, literal.own(), depth.to_owned())
             }
-            None => self
-                .globals
-                .borrow_mut()
-                .assign(&id.lexeme, literal.own()),
+            None => self.globals.borrow_mut().assign(&id.lexeme, literal.own()),
         };
 
         match result {

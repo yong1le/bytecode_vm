@@ -10,34 +10,6 @@ use crate::{
     scanner::Scanner,
 };
 
-// program        →  declaration* EOF;
-// declaration    → varDecl | funcDecl | classDecl | statement ;
-// funcDecl       → "fun" IDENTIFIER "(" parameters? ")" block ;
-// parameters     → IDENTIFIER ( "," IDENTIFIER )* ;
-// varDecl        → "var" IDENTIFIER ( "=" )? ";";
-// classDecl      → "class" IDENTIFIER ( "<" IDENTIFIER )? "{" funcDecl* "}" ;
-// statement      → exprStmt | printStmt | if | for | while | block | return ;
-// block          → "{" declaration* "}"
-// exprStmt       → expression ";" '
-// printStmt      → "print" expression ";" ;
-// if             → "if (" expression ")" statement ( "else" statement )?
-// while          → "while (" expression ")" statement
-// return         → "return" expression? ";" ;
-
-// expression     → assignment ;
-// assignment     → (call ".")? IDENTIFIER "=" assignment | logic_or;
-// logic_or       → logic_and ( "or" logic_and )* ;
-// logic_and      → equality ( "and" equality )* ;
-// equality       → comparison ( ( "!=" | "==" ) comparison )* ;
-// comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
-// term           → factor ( ( "-" | "+" ) factor )* ;
-// factor         → unary ( ( "/" | "*" ) unary )* ;
-// unary          → ( "!" | "-" ) unary | call ;
-// call           → primary ( "(" arguments? ")" | "." IDENTIFIER )* ;
-// arguments      → expression ( "," expression )* ;
-// primary        → NUMBER | STRING | "true" | "false" | "nil"
-//                | "(" expression ")" | IDENTIFIER;
-
 /// An iterator over the statements in the code.
 pub struct Parser<'a> {
     /// An iterator over the tokens in the code.

@@ -9,16 +9,25 @@ use crate::{
     runtime::interpreter::Interpreter,
 };
 
+/// A struct that resolves identifiers to its correct scope. Does this to all identifers except
+/// those defined in the global scope.
 pub struct Resolver<'a> {
+    /// The interpreter that will interpret this AST after all identifiers have been resolved
     interpreter: &'a mut Interpreter,
+    /// Stack that represents the scope we are in
     scopes: Vec<HashMap<String, bool>>,
+    /// The level of nested function declarations we are in
     func_level: u32,
+    /// The level of nested class declarations we are in
     class_level: u32,
+    /// The level of nested class constructor declarations we are in
     init_level: u32,
+    /// The level of nested subclass declarations we are in
     subclass_level: u32,
 }
 
 impl<'a> Resolver<'a> {
+    /// Creates a new copy of `Resolver`
     pub fn new(interpreter: &'a mut Interpreter) -> Self {
         Self {
             interpreter,
@@ -38,6 +47,8 @@ impl<'a> Resolver<'a> {
         stmt.accept(self)
     }
 
+    /// Resolve a visit of a local variable by binding it to the first scope that
+    /// defines `lexeme`
     fn resolve_local(&mut self, token_id: usize, lexeme: &str) {
         for (i, scope) in self.scopes.iter().enumerate().rev() {
             if scope.get(lexeme).is_some() {
@@ -48,6 +59,7 @@ impl<'a> Resolver<'a> {
         }
     }
 
+    /// Resolve a functions parameters and body
     fn resolve_function(&mut self, params: &[Token], body: &[Stmt]) -> Result<(), SemanticError> {
         self.begin_scope();
 
@@ -66,14 +78,18 @@ impl<'a> Resolver<'a> {
         Ok(())
     }
 
+    /// Begin a new scope
     fn begin_scope(&mut self) {
         self.scopes.push(HashMap::new());
     }
 
+    /// End the current scope
     fn end_scope(&mut self) {
         self.scopes.pop();
     }
 
+    /// Declares a new uninitialized local variable. Local variables cannot have
+    /// multiply declarations.
     fn declare(&mut self, id: &Token) -> Result<(), SemanticError> {
         let scope = self.scopes.last_mut();
         if let Some(s) = scope {
@@ -89,6 +105,7 @@ impl<'a> Resolver<'a> {
         Ok(())
     }
 
+    /// Sets a local variable to be initialized.
     fn define(&mut self, id: &Token) {
         let scope = self.scopes.last_mut();
         if let Some(s) = scope {

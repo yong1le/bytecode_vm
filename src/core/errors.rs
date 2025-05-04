@@ -21,6 +21,7 @@ pub enum SyntaxError {
     InvalidAssignment(u32, Expr),
 }
 
+/// Semantic errors that can occur during variable resolution and binding.
 #[derive(Debug, Clone)]
 pub enum SemanticError {
     UndeclaredLocalInInitializer(u32),

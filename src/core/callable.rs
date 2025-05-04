@@ -12,6 +12,7 @@ use crate::{
 
 use super::{class::LoxInstance, errors::RuntimeError, literal::Literal, token::Token};
 
+/// A trait that represents a callable object in Lox
 pub trait LoxCallable: fmt::Debug {
     fn call(
         &self,
@@ -43,7 +44,7 @@ impl LoxCallable for Clock {
     }
 }
 
-// User Functions
+/// User Functions
 #[derive(Debug, Clone)]
 pub struct LoxFunction {
     name: String,

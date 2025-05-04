@@ -28,6 +28,8 @@ impl Environment {
         }))
     }
 
+    /// Returns the `depth`'th enclosing ancestor of the envionrment
+    ///
     /// Condition: depth >= 1
     fn ancestor(&self, depth: u32) -> Rc<RefCell<Environment>> {
         match &self.enclosing {
@@ -50,19 +52,21 @@ impl Environment {
         self.values.insert(id, value);
     }
 
-    /// Gets the value of a variable from the environment, or any enclosing environment.
+    /// Gets the value of a variable from the environment. This is equivalent to
+    /// `environment.get_at(id, 0)`
+    ///
+    /// Returns `None` if no value exists.
     pub fn get(&self, id: &str) -> Option<Literal> {
         if let Some(value) = self.values.get(id) {
             return Some(value.own());
         }
 
-        if let Some(enclosing) = &self.enclosing {
-            return enclosing.borrow().get(id);
-        }
-
         None
     }
 
+    /// Gets the value of a variable at the `depth`'th ancestor of the environment.
+    ///
+    /// Returns `None` if no value exists.
     pub fn get_at(&self, id: &str, depth: u32) -> Option<Literal> {
         if depth == 0 {
             self.get(id)
@@ -71,19 +75,23 @@ impl Environment {
         }
     }
 
-    /// Assigns a value to a variable in the environment, or any enclosing environment.
-    /// If no variable is found, it returns an error.
+    /// Assigns a value to a variable in the environment. This is equivalent to
+    /// `environment.assign_at(id, value, 0)`.
+    ///
+    /// Returns an error if the variable is not defined in the environment.
     pub fn assign(&mut self, id: &String, value: Literal) -> Result<(), ()> {
         if self.values.contains_key(id) {
             self.values.insert(id.to_owned(), value);
             Ok(())
-        } else if let Some(enclosing) = &self.enclosing {
-            return enclosing.borrow_mut().assign(id, value);
         } else {
             Err(())
         }
     }
 
+    /// Assigns a value to a variable at defined at the `depth`'th ancestor of
+    /// the environment.
+    ///
+    /// Returns an error if the variable is not defined in the environment.
     pub fn assign_at(&mut self, id: &String, value: Literal, depth: u32) -> Result<(), ()> {
         if depth == 0 {
             self.assign(id, value)

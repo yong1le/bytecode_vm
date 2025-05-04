@@ -9,6 +9,7 @@ use super::{
     token::Token,
 };
 
+/// User defined classes
 #[derive(Clone, Debug)]
 pub struct LoxClass {
     name: String,
@@ -36,6 +37,8 @@ impl LoxClass {
         })
     }
 
+    /// Finds a method that was defined in this class. If not method was found, look up
+    /// the ancestory tree.
     pub fn find_method(&self, method: &str) -> Option<&LoxFunction> {
         match self.methods.get(method) {
             Some(func) => Some(func),
