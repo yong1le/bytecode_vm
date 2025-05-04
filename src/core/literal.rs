@@ -59,4 +59,15 @@ impl Literal {
             _ => true,
         }
     }
+
+    /// Change the default implementation of literal.to_owned()
+    pub fn own(&self) -> Literal {
+        // TODO: this may already be the default of to_own() in Rust...
+        match self {
+            Literal::Callable(c) => return Literal::Callable(c.clone()),
+            Literal::Class(c) => return Literal::Class(c.clone()),
+            Literal::Instance(i) => return Literal::Instance(i.clone()),
+            v => return v.clone(),
+        }
+    }
 }

@@ -87,12 +87,7 @@ impl Interpreter {
 
 impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
     fn visit_literal(&mut self, literal: &Literal) -> Result<Literal, RuntimeError> {
-        match literal {
-            Literal::Callable(c) => Ok(Literal::Callable(c.clone())),
-            Literal::Class(c) => Ok(Literal::Class(c.clone())),
-            Literal::Instance(i) => Ok(Literal::Instance(i.clone())),
-            l => Ok(l.to_owned()),
-        }
+        Ok(literal.own())
     }
 
     fn visit_unary(&mut self, operator: &Token, expr: &Expr) -> Result<Literal, RuntimeError> {
@@ -179,12 +174,12 @@ impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
             Some(depth) => {
                 self.env
                     .borrow_mut()
-                    .assign_at(&id.lexeme, literal.to_owned(), depth.to_owned())
+                    .assign_at(&id.lexeme, literal.own(), depth.to_owned())
             }
             None => self
                 .globals
                 .borrow_mut()
-                .assign(&id.lexeme, literal.to_owned()),
+                .assign(&id.lexeme, literal.own()),
         };
 
         match result {
@@ -275,7 +270,7 @@ impl ExprVisitor<Result<Literal, RuntimeError>> for Interpreter {
         match self.evaluate(obj)? {
             Literal::Instance(instance) => {
                 let literal = self.evaluate(value)?;
-                instance.borrow_mut().set(prop, literal.to_owned());
+                instance.borrow_mut().set(prop, literal.own());
                 Ok(literal)
             }
             other => Err(RuntimeError::InvalidPropertyAccess(

@@ -53,12 +53,7 @@ impl Environment {
     /// Gets the value of a variable from the environment, or any enclosing environment.
     pub fn get(&self, id: &str) -> Option<Literal> {
         if let Some(value) = self.values.get(id) {
-            match value {
-                Literal::Callable(c) => return Some(Literal::Callable(c.clone())),
-                Literal::Class(c) => return Some(Literal::Class(c.clone())),
-                Literal::Instance(i) => return Some(Literal::Instance(i.clone())),
-                v => return Some(v.clone()),
-            }
+            return Some(value.own());
         }
 
         if let Some(enclosing) = &self.enclosing {
