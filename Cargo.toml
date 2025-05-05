@@ -8,10 +8,3 @@ rust-version = "1.80"
 [dependencies]
 thiserror = "2.0.12"
 derive_more = { version = "2", features = ["try_from"] }
-
-[dev-dependencies]
-criterion = "0.5"
-
-[[bench]]
-name = "value_benchmarks"
-harness = false
