@@ -1,14 +1,26 @@
 use std::{iter::Peekable, rc::Rc, vec};
 
+use thiserror::Error;
+
 use crate::{
     ast::{expr::Expr, stmt::Stmt},
-    core::{
-        errors::SyntaxError,
-        literal::Literal,
-        token::{Token, TokenType},
-    },
-    scanner::Scanner,
+    core::token::{Token, TokenType},
+    scanner::{ScanError, Scanner},
 };
+
+#[derive(Debug, Error)]
+pub enum SyntaxError {
+    #[error("{0}")]
+    ScanError(ScanError),
+    #[error("[line {0}]: Error at '{1}': Expected {2}.")]
+    ExpectedChar(u32, String, String),
+    #[error("[line {0}]: Error at '{1}': Expected expression.")]
+    ExpectedExpression(u32, String),
+    #[error("Unexpected end of file.")]
+    UnexpectedEOF,
+    #[error("[line {0}]: Error at '=': Invalid assignment.")]
+    InvalidAssignment(u32),
+}
 
 /// An iterator over the statements in the code.
 pub struct Parser<'a> {
@@ -20,26 +32,8 @@ impl<'a> Parser<'a> {
     /// Creates a new parser from the given scanner.
     pub fn new(tokens: Scanner<'a>) -> Self {
         Self {
-            tokens: tokens.into_iter().peekable(),
+            tokens: tokens.peekable(),
         }
-    }
-
-    /// Parses the first expression from the list of tokens and advances the
-    /// iterator.
-    pub fn parse(&mut self) -> Option<Result<Expr, SyntaxError>> {
-        match self.tokens.peek() {
-            Some(Ok(token)) => {
-                if token.token == TokenType::Eof {
-                    return None;
-                }
-            }
-            None => return None,
-            _ => (),
-        }
-
-        let result = self.expression();
-
-        Some(result)
     }
 
     /// Advances to the next token to parse. If there are no more tokens to parse,
@@ -79,7 +73,7 @@ impl<'a> Parser<'a> {
             Err(SyntaxError::ExpectedChar(
                 next_token.line,
                 next_token.lexeme.to_owned(),
-                format!("{}", token),
+                format!("{:?}", token),
             ))
         }
     }
@@ -319,7 +313,7 @@ impl<'a> Parser<'a> {
     }
 
     fn for_stmt(&mut self) -> Result<Stmt, SyntaxError> {
-        self.consume(TokenType::LeftParen)?;
+        let token = self.consume(TokenType::LeftParen)?;
 
         let initializer = match self.peek()?.token {
             TokenType::Semicolon => {
@@ -356,7 +350,14 @@ impl<'a> Parser<'a> {
                 body = Stmt::While(cond, Box::new(body));
             }
             None => {
-                body = Stmt::While(Expr::Literal(Literal::Boolean(true)), Box::new(body));
+                body = Stmt::While(
+                    Expr::Literal(Token {
+                        token: TokenType::True,
+                        lexeme: "true".to_string(),
+                        line: token.line,
+                    }),
+                    Box::new(body),
+                );
             }
         };
 
@@ -369,7 +370,14 @@ impl<'a> Parser<'a> {
 
     fn return_stmt(&mut self, line: u32) -> Result<Stmt, SyntaxError> {
         if self.consume(TokenType::Semicolon).is_ok() {
-            return Ok(Stmt::Return(Expr::Literal(Literal::Nil), line));
+            return Ok(Stmt::Return(
+                Expr::Literal(Token {
+                    token: TokenType::Nil,
+                    lexeme: "nil".to_string(),
+                    line,
+                }),
+                line,
+            ));
         }
         let expr = self.expression()?;
         self.consume(TokenType::Semicolon)?;
@@ -399,7 +407,7 @@ impl<'a> Parser<'a> {
                 match expr {
                     Expr::Variable(id) => Ok(Expr::Assign(id, Box::new(value))),
                     Expr::Get(obj, prop) => Ok(Expr::Set(obj, prop, Box::new(value))),
-                    a => Err(SyntaxError::InvalidAssignment(actual.line, a)),
+                    _ => Err(SyntaxError::InvalidAssignment(actual.line)),
                 }
             }
             _ => Ok(expr),
@@ -577,11 +585,11 @@ impl<'a> Parser<'a> {
 
         let expr = match &t.token {
             TokenType::Identifier => Expr::Variable(t),
-            TokenType::True => Expr::Literal(Literal::Boolean(true)),
-            TokenType::False => Expr::Literal(Literal::Boolean(false)),
-            TokenType::Nil => Expr::Literal(Literal::Nil),
-            TokenType::String => Expr::Literal(t.literal),
-            TokenType::Number => Expr::Literal(t.literal),
+            TokenType::True
+            | TokenType::False
+            | TokenType::Nil
+            | TokenType::String
+            | TokenType::Number => Expr::Literal(t),
             TokenType::LeftParen => {
                 let expr = self.expression()?;
                 self.consume(TokenType::RightParen)?;
@@ -602,7 +610,7 @@ impl<'a> Parser<'a> {
 }
 
 impl Iterator for Parser<'_> {
-    type Item = Result<Stmt, SyntaxError>;
+    type Item = Result<Expr, SyntaxError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.tokens.peek() {
@@ -615,7 +623,7 @@ impl Iterator for Parser<'_> {
             _ => (),
         }
 
-        match self.declaration() {
+        match self.expression() {
             Ok(s) => Some(Ok(s)),
             Err(e) => {
                 self.synchronize();

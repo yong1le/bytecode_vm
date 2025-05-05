@@ -1,0 +1,79 @@
+Value Creation/number   time:   [4.4413 ns 4.4455 ns 4.4501 ns]
+Found 8 outliers among 100 measurements (8.00%)
+  2 (2.00%) low mild
+  1 (1.00%) high mild
+  5 (5.00%) high severe
+Value Creation/boolean  time:   [4.4483 ns 4.4524 ns 4.4577 ns]
+Found 19 outliers among 100 measurements (19.00%)
+  4 (4.00%) low severe
+  2 (2.00%) low mild
+  5 (5.00%) high mild
+  8 (8.00%) high severe
+Value Creation/nil      time:   [4.0441 ns 4.0584 ns 4.0729 ns]
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) high mild
+Value Creation/short_string
+                        time:   [19.270 ns 19.344 ns 19.421 ns]
+Found 4 outliers among 100 measurements (4.00%)
+  3 (3.00%) high mild
+  1 (1.00%) high severe
+Value Creation/medium_string
+                        time:   [22.040 ns 22.132 ns 22.221 ns]
+Found 2 outliers among 100 measurements (2.00%)
+  2 (2.00%) high severe
+Value Creation/long_string
+                        time:   [24.303 ns 24.417 ns 24.525 ns]
+Found 6 outliers among 100 measurements (6.00%)
+  5 (5.00%) high mild
+  1 (1.00%) high severe
+
+Value Cloning/number    time:   [7.9072 ns 7.9341 ns 7.9595 ns]
+Found 5 outliers among 100 measurements (5.00%)
+  4 (4.00%) high mild
+  1 (1.00%) high severe
+Value Cloning/boolean   time:   [7.8632 ns 7.8810 ns 7.9036 ns]
+Found 14 outliers among 100 measurements (14.00%)
+  2 (2.00%) low mild
+  5 (5.00%) high mild
+  7 (7.00%) high severe
+Value Cloning/nil       time:   [7.7015 ns 7.7264 ns 7.7553 ns]
+Found 10 outliers among 100 measurements (10.00%)
+  7 (7.00%) high mild
+  3 (3.00%) high severe
+Value Cloning/short_string
+                        time:   [12.175 ns 12.341 ns 12.532 ns]
+Found 21 outliers among 100 measurements (21.00%)
+  5 (5.00%) high mild
+  16 (16.00%) high severe
+Value Cloning/long_string
+                        time:   [12.091 ns 12.112 ns 12.140 ns]
+Found 17 outliers among 100 measurements (17.00%)
+  7 (7.00%) low severe
+  1 (1.00%) low mild
+  2 (2.00%) high mild
+  7 (7.00%) high severe
+
+Value Access/number_match
+                        time:   [427.67 ps 429.10 ps 430.53 ps]
+Found 2 outliers among 100 measurements (2.00%)
+  1 (1.00%) high mild
+  1 (1.00%) high severe
+Value Access/string_match
+                        time:   [851.22 ps 852.61 ps 854.11 ps]
+Found 34 outliers among 100 measurements (34.00%)
+  12 (12.00%) low severe
+  3 (3.00%) low mild
+  1 (1.00%) high mild
+  18 (18.00%) high severe
+
+Stack vs Heap Operations/push_pop_100_numbers
+                        time:   [517.85 ns 518.58 ns 519.37 ns]
+Found 16 outliers among 100 measurements (16.00%)
+  1 (1.00%) low mild
+  7 (7.00%) high mild
+  8 (8.00%) high severe
+Stack vs Heap Operations/push_pop_100_strings
+                        time:   [3.9883 µs 4.0009 µs 4.0133 µs]
+Found 5 outliers among 100 measurements (5.00%)
+  3 (3.00%) high mild
+  2 (2.00%) high severe

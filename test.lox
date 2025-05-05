@@ -1,9 +1,386 @@
-fun fib(n) {
-  if (n < 2) return n;
-  return fib(n - 1) + fib(n - 2); 
+// Large sample of valid Lox code
+// Demonstrating language features
+
+// Variable declarations and assignments
+var a = 1;
+var b = 2;
+var sum = a + b;
+var difference = a - b;
+var product = a * b;
+var quotient = a / b;
+var name = "LoxScript";
+var isActive = true;
+var isNotActive = false;
+var nothing = nil;
+
+// Printing values
+print "Hello, Lox!";
+print sum;
+print product;
+print name + " version 1.0";
+print "Math: " + (2 + 3 * 4) + " is the result";
+
+// Conditionals
+if (sum > 0) {
+  print "Sum is positive";
+} else {
+  print "Sum is not positive";
 }
 
-var before = clock();
-print fib(40);
-var after = clock();
-print after - before;
+if (isActive and not isNotActive) {
+  print "System is running";
+}
+
+if (a == 1 or b == 3) {
+  print "Condition met";
+}
+
+// While loop
+var counter = 0;
+while (counter < 5) {
+  print "Counter: " + counter;
+  counter = counter + 1;
+}
+
+// For loop
+for (var i = 0; i < 3; i = i + 1) {
+  print "Loop iteration: " + i;
+}
+
+// Nested loops
+for (var i = 0; i < 3; i = i + 1) {
+  for (var j = 0; j < 2; j = j + 1) {
+    print "i=" + i + ", j=" + j;
+  }
+}
+
+// Function declarations
+fun sayHello(name) {
+  print "Hello, " + name + "!";
+}
+
+fun add(a, b) {
+  return a + b;
+}
+
+fun factorial(n) {
+  if (n <= 1) return 1;
+  return n * factorial(n - 1);
+}
+
+fun fibonacci(n) {
+  if (n <= 1) return n;
+  return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+// Function calls
+sayHello("Lox User");
+print add(5, 7);
+print "Factorial of 5 is " + factorial(5);
+print "Fibonacci of 7 is " + fibonacci(7);
+
+// Closures
+fun makeCounter() {
+  var count = 0;
+  fun counter() {
+    count = count + 1;
+    return count;
+  }
+
+  return counter;
+}
+
+var counter1 = makeCounter();
+var counter2 = makeCounter();
+
+print counter1(); // 1
+print counter1(); // 2
+print counter2(); // 1
+
+// Higher-order functions
+fun times(n) {
+  return fun(a) {
+    return a * n;
+  };
+}
+
+var double = times(2);
+var triple = times(3);
+
+print double(5);  // 10
+print triple(5);  // 15
+
+// Classes
+class Point {
+  init(x, y) {
+    this.x = x;
+    this.y = y;
+  }
+
+  distanceFromOrigin() {
+    return (this.x * this.x + this.y * this.y);
+  }
+
+  translate(dx, dy) {
+    this.x = this.x + dx;
+    this.y = this.y + dy;
+  }
+}
+
+var point = Point(3, 4);
+print "Distance: " + point.distanceFromOrigin();
+point.translate(2, 3);
+print "New coordinates: " + point.x + ", " + point.y;
+
+// Inheritance
+class Shape {
+  init() {
+    this.type = "shape";
+  }
+
+  describe() {
+    return "I am a " + this.type;
+  }
+}
+
+class Circle < Shape {
+  init(radius) {
+    super.init();
+    this.type = "circle";
+    this.radius = radius;
+  }
+
+  area() {
+    return 3.14159 * this.radius * this.radius;
+  }
+
+  describe() {
+    return super.describe() + " with radius " + this.radius;
+  }
+}
+
+var circle = Circle(5);
+print circle.describe();
+print "Area: " + circle.area();
+
+// More complex example
+class Calculator {
+  init() {
+    this.result = 0;
+  }
+
+  add(value) {
+    this.result = this.result + value;
+    return this;
+  }
+
+  subtract(value) {
+    this.result = this.result - value;
+    return this;
+  }
+
+  multiply(value) {
+    this.result = this.result * value;
+    return this;
+  }
+
+  divide(value) {
+    this.result = this.result / value;
+    return this;
+  }
+
+  clear() {
+    this.result = 0;
+    return this;
+  }
+
+  getResult() {
+    return this.result;
+  }
+}
+
+var calc = Calculator();
+calc.add(5).multiply(2).subtract(3).divide(2);
+print "Calculator result: " + calc.getResult();
+
+// String and number operations
+var text = "Hello" + " " + "World";
+var textLength = text.length;  // This won't actually work in basic Lox, but showing for completeness
+var number = 42;
+var isEven = (number % 2 == 0); // Modulo might not be in basic Lox
+var power = number ^ 2;        // Power might not be in basic Lox
+
+// Logical operations
+var logicalAnd = true and true;
+var logicalOr = false or true;
+var logicalNot = not false;
+
+// Mathematical expressions
+var complexMath = (1 + 2) * 3 - 4 / 2;
+var precedenceTest = 1 + 2 * 3;  // Should be 7, not 9
+
+// Multiple return statements with conditionals
+fun max(a, b) {
+  if (a > b) return a;
+  return b;
+}
+
+fun isEvenNumber(n) {
+  if (n % 2 == 0) {  // Assuming modulo works
+    return true;
+  } else {
+    return false;
+  }
+}
+
+// Nested function declarations
+fun outer() {
+  var x = "outer";
+
+  fun middle() {
+    var y = "middle";
+
+    fun inner() {
+      var z = "inner";
+      print x;
+      print y;
+      print z;
+    }
+
+    inner();
+  }
+
+  middle();
+}
+
+outer();
+
+// Complex object example
+class Person {
+  init(name, age) {
+    this.name = name;
+    this.age = age;
+    this.friends = 0;
+  }
+
+  addFriend() {
+    this.friends = this.friends + 1;
+  }
+
+  describe() {
+    return this.name + " is " + this.age + " years old with " + this.friends + " friends.";
+  }
+}
+
+var alice = Person("Alice", 28);
+var bob = Person("Bob", 30);
+alice.addFriend();
+alice.addFriend();
+bob.addFriend();
+print alice.describe();
+print bob.describe();
+
+// Function that returns another function
+fun makeAdder(a) {
+  return fun(b) {
+    return a + b;
+  };
+}
+
+var add5 = makeAdder(5);
+var add10 = makeAdder(10);
+print add5(3);   // 8
+print add10(3);  // 13
+
+// Lexical scope demonstration
+var global = "global";
+
+fun showScopes() {
+  var local = "local";
+  print global;  // Accesses global
+  print local;   // Accesses local
+
+  fun inner() {
+    var innerLocal = "inner local";
+    print global;     // Accesses global
+    print local;      // Accesses outer local
+    print innerLocal; // Accesses its own local
+  }
+
+  inner();
+}
+
+showScopes();
+
+// More complex class hierarchy
+class Animal {
+  init(name) {
+    this.name = name;
+  }
+
+  speak() {
+    return "...";
+  }
+
+  identify() {
+    return "I am " + this.name + " and I say " + this.speak();
+  }
+}
+
+class Dog < Animal {
+  speak() {
+    return "Woof!";
+  }
+}
+
+class Cat < Animal {
+  speak() {
+    return "Meow!";
+  }
+}
+
+var dog = Dog("Rover");
+var cat = Cat("Whiskers");
+print dog.identify();
+print cat.identify();
+
+// Mutual recursion
+fun isEven(n) {
+  if (n == 0) return true;
+  return isOdd(n - 1);
+}
+
+fun isOdd(n) {
+  if (n == 0) return false;
+  return isEven(n - 1);
+}
+
+print isEven(4);  // true
+print isOdd(3);   // true
+
+// Function with many arguments
+fun manyArgs(a, b, c, d, e, f) {
+  return a + b + c + d + e + f;
+}
+
+print manyArgs(1, 2, 3, 4, 5, 6);  // 21
+
+// Multiple variable declarations
+var x = 1, y = 2, z = 3;
+print x + y + z;
+
+// More complex control flow
+var value = 42;
+
+if (value < 10) {
+  print "Small value";
+} else if (value < 50) {
+  print "Medium value";
+} else if (value < 100) {
+  print "Large value";
+} else {
+  print "Huge value";
+}
+
+// More complex expression nesting
+print 1 + 2 + (3 * (4 + 5)) - 6 / 2;

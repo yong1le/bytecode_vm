@@ -1,4 +1,3 @@
-use core::fmt;
 use std::rc::Rc;
 
 use crate::core::token::Token;
@@ -60,44 +59,6 @@ impl Stmt {
             Stmt::DeclareClass(id, parent, methods) => {
                 visiter.visit_declare_class(id, parent, methods)
             }
-        }
-    }
-}
-
-impl fmt::Display for Stmt {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Stmt::Expr(e) => write!(f, "{}", e),
-            Stmt::Print(e) => write!(f, "(print {})", e),
-            Stmt::DeclareVar(id, expr) => write!(
-                f,
-                "(var {} ({}))",
-                id.lexeme,
-                match expr {
-                    Some(e) => format!("{e}"),
-                    None => "null".to_string(),
-                }
-            ),
-            Stmt::Block(stmts) => {
-                writeln!(f, "(block [")?;
-                for stmt in stmts {
-                    writeln!(f, "  {}", stmt)?;
-                }
-                write!(f, "])")
-            }
-            Stmt::If(expr, if_block, else_block) => write!(
-                f,
-                "(if ({}) ({}) ({})",
-                expr,
-                if_block,
-                match else_block {
-                    Some(s) => format!("{}", s),
-                    None => "null".to_string(),
-                }
-            ),
-            Stmt::While(expr, while_block) => write!(f, "(while ({}) ({}))", expr, while_block),
-            Stmt::DeclareClass(id, _, _) => write!(f, "{}", id.lexeme),
-            _ => todo!(),
         }
     }
 }

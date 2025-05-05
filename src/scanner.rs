@@ -1,9 +1,16 @@
-use crate::core::errors::ScanError;
-use crate::core::literal::Literal;
+use thiserror::Error;
+
 use crate::core::token::{Token, TokenType};
 use std::iter::Peekable;
 use std::str::Chars;
 
+#[derive(Debug, Error, Clone)]
+pub enum ScanError {
+    #[error("[line {0}: Error: Unterminated string.")]
+    UnterminatedString(u32),
+    #[error("[line {0}: Error at '{1}': Unexpected character.")]
+    UnexpectedCharacter(u32, char),
+}
 /// An iterator over the tokens in the source code.
 pub struct Scanner<'a> {
     /// An iterator over the characters in the source code.
@@ -14,8 +21,6 @@ pub struct Scanner<'a> {
     eof: bool,
     /// Temporary store for a character that was skipped over.
     unget: Option<char>,
-    /// Current id for token
-    token_id: usize,
 }
 
 impl<'a> Scanner<'a> {
@@ -26,14 +31,13 @@ impl<'a> Scanner<'a> {
             line: 1,
             eof: false,
             unget: None,
-            token_id: 0,
         }
     }
 
     /// Tokenizes a string from the source code.
     ///
     /// Returns a `ScanError::UnterminatedString` if the string is not terminated.
-    fn tokenize_string(&mut self) -> Result<(TokenType, Literal, String), ScanError> {
+    fn tokenize_string(&mut self) -> Result<(TokenType, String), ScanError> {
         let mut lexeme = String::from('"');
         loop {
             match self.peek() {
@@ -57,19 +61,13 @@ impl<'a> Scanner<'a> {
             }
         }
 
-        Ok((
-            TokenType::String,
-            Literal::String(std::borrow::Cow::Owned(
-                lexeme[1..lexeme.len() - 1].to_string(),
-            )),
-            lexeme,
-        ))
+        Ok((TokenType::String, lexeme))
     }
 
     /// Tokenizes a number from the source code.
     ///
     /// Numbers cannot be preceded by decimals nor can they be end with a decimal.
-    fn tokenize_number(&mut self, init: char) -> Result<(TokenType, Literal, String), ScanError> {
+    fn tokenize_number(&mut self, init: char) -> Result<(TokenType, String), ScanError> {
         let mut lexeme = String::from(init);
         let mut has_decimal = false;
 
@@ -100,20 +98,13 @@ impl<'a> Scanner<'a> {
             }
         }
 
-        Ok((
-            TokenType::Number,
-            Literal::Number(lexeme.parse().unwrap()),
-            lexeme,
-        ))
+        Ok((TokenType::Number, lexeme))
     }
 
     /// Tokenizes an identifier from the source code.
     ///
     /// Identifiers can contain letters, digits, and underscores.
-    fn tokenize_identifier(
-        &mut self,
-        init: char,
-    ) -> Result<(TokenType, Literal, String), ScanError> {
+    fn tokenize_identifier(&mut self, init: char) -> Result<(TokenType, String), ScanError> {
         let mut lexeme = String::from(init);
 
         while let Some(&ch) = self.peek() {
@@ -145,7 +136,6 @@ impl<'a> Scanner<'a> {
                 "while" => TokenType::While,
                 _ => TokenType::Identifier,
             },
-            Literal::Nil,
             lexeme,
         ))
     }
@@ -203,22 +193,12 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    fn add_token(
-        &mut self,
-        token: TokenType,
-        lexeme: String,
-        literal: Literal,
-        line: u32,
-    ) -> Token {
+    fn add_token(&mut self, token: TokenType, lexeme: String, line: u32) -> Token {
         let token = Token {
             token,
             lexeme,
-            literal,
             line,
-            id: self.token_id,
         };
-
-        self.token_id += 1;
 
         token
     }
@@ -240,7 +220,6 @@ impl Iterator for Scanner<'_> {
                     return Some(Ok(self.add_token(
                         TokenType::Eof,
                         "".to_string(),
-                        Literal::Nil,
                         self.line,
                     )));
                 }
@@ -250,47 +229,47 @@ impl Iterator for Scanner<'_> {
         self.advance();
 
         let result = match c {
-            '(' => Ok((TokenType::LeftParen, Literal::Nil, "(".to_string())),
-            ')' => Ok((TokenType::RightParen, Literal::Nil, ")".to_string())),
-            '{' => Ok((TokenType::LeftBrace, Literal::Nil, "{".to_string())),
-            '}' => Ok((TokenType::RightBrace, Literal::Nil, "}".to_string())),
-            '*' => Ok((TokenType::Star, Literal::Nil, "*".to_string())),
-            ';' => Ok((TokenType::Semicolon, Literal::Nil, ";".to_string())),
-            '+' => Ok((TokenType::Plus, Literal::Nil, "+".to_string())),
-            '-' => Ok((TokenType::Minus, Literal::Nil, "-".to_string())),
-            '.' => Ok((TokenType::Dot, Literal::Nil, ".".to_string())),
-            ',' => Ok((TokenType::Comma, Literal::Nil, ",".to_string())),
-            '/' => Ok((TokenType::Slash, Literal::Nil, "/".to_string())),
+            '(' => Ok((TokenType::LeftParen, "(".to_string())),
+            ')' => Ok((TokenType::RightParen, ")".to_string())),
+            '{' => Ok((TokenType::LeftBrace, "{".to_string())),
+            '}' => Ok((TokenType::RightBrace, "}".to_string())),
+            '*' => Ok((TokenType::Star, "*".to_string())),
+            ';' => Ok((TokenType::Semicolon, ";".to_string())),
+            '+' => Ok((TokenType::Plus, "+".to_string())),
+            '-' => Ok((TokenType::Minus, "-".to_string())),
+            '.' => Ok((TokenType::Dot, ".".to_string())),
+            ',' => Ok((TokenType::Comma, ",".to_string())),
+            '/' => Ok((TokenType::Slash, "/".to_string())),
             '=' => {
                 if self.peek() == Some(&'=') {
                     self.advance();
-                    Ok((TokenType::EqualEqual, Literal::Nil, "==".to_string()))
+                    Ok((TokenType::EqualEqual, "==".to_string()))
                 } else {
-                    Ok((TokenType::Equal, Literal::Nil, "=".to_string()))
+                    Ok((TokenType::Equal, "=".to_string()))
                 }
             }
             '!' => {
                 if self.peek() == Some(&'=') {
                     self.advance();
-                    Ok((TokenType::BangEqual, Literal::Nil, "!=".to_string()))
+                    Ok((TokenType::BangEqual, "!=".to_string()))
                 } else {
-                    Ok((TokenType::Bang, Literal::Nil, "!".to_string()))
+                    Ok((TokenType::Bang, "!".to_string()))
                 }
             }
             '<' => {
                 if self.peek() == Some(&'=') {
                     self.advance();
-                    Ok((TokenType::LessEqual, Literal::Nil, "<=".to_string()))
+                    Ok((TokenType::LessEqual, "<=".to_string()))
                 } else {
-                    Ok((TokenType::LessThan, Literal::Nil, "<".to_string()))
+                    Ok((TokenType::LessThan, "<".to_string()))
                 }
             }
             '>' => {
                 if self.peek() == Some(&'=') {
                     self.advance();
-                    Ok((TokenType::GreaterEqual, Literal::Nil, ">=".to_string()))
+                    Ok((TokenType::GreaterEqual, ">=".to_string()))
                 } else {
-                    Ok((TokenType::GreaterThan, Literal::Nil, ">".to_string()))
+                    Ok((TokenType::GreaterThan, ">".to_string()))
                 }
             }
             '"' => self.tokenize_string(),
@@ -300,9 +279,7 @@ impl Iterator for Scanner<'_> {
         };
 
         match result {
-            Ok((token, literal, lexeme)) => {
-                Some(Ok(self.add_token(token, lexeme, literal, self.line)))
-            }
+            Ok((token, lexeme)) => Some(Ok(self.add_token(token, lexeme, self.line))),
             Err(e) => Some(Err(e)),
         }
     }
