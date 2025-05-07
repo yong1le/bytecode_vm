@@ -1,5 +1,3 @@
-use thiserror::Error;
-
 use crate::{
     ast::{
         expr::{Expr, ExprVisitor},
@@ -7,52 +5,46 @@ use crate::{
     },
     chunk::Chunk,
     core::{
+        errors::InterpretError,
         token::{Token, TokenType},
         value::{Object, Value},
     },
+    heap::Heap,
     opcode::OpCode,
     parser::Parser,
-    vm::VM,
 };
 
-#[derive(Debug, Error)]
-pub enum CompileError {
-    #[error("Compile Error")]
-    Error,
-}
-
-type Return = Result<(), CompileError>;
+type Return = Result<(), InterpretError>;
 
 pub struct Compiler<'a> {
     statements: Parser<'a>,
     chunk: Chunk,
-    vm: &'a mut VM,
+    heap: &'a mut Heap,
 }
 
 impl<'a> Compiler<'a> {
-    pub fn new(statements: Parser<'a>, vm: &'a mut VM) -> Self {
+    pub fn new(statements: Parser<'a>, heap: &'a mut Heap) -> Self {
         Compiler {
             statements,
-            vm,
+            heap,
             chunk: Chunk::new(),
         }
     }
 
-    pub fn compile(&mut self) -> Result<Chunk, CompileError> {
-        self.chunk = Chunk::new();
-        while let Some(expr) = self.statements.next() {
-            match expr {
-                Ok(expr) => {
-                    self.compile_expr(&expr)?;
+    pub fn compile(mut self) -> Result<Chunk, InterpretError> {
+        while let Some(stmt) = self.statements.next() {
+            match stmt {
+                Ok(stmt) => {
+                    self.compile_stmt(&stmt)?;
                 }
-                Err(_) => {
-                    return Err(CompileError::Error);
+                Err(e) => {
+                    return Err(e);
                 }
             }
         }
 
         self.chunk.write_byte(OpCode::Return as u8, 2);
-        Ok(self.chunk.clone())
+        Ok(self.chunk)
     }
 
     fn compile_expr(&mut self, expression: &Expr) -> Return {
@@ -62,19 +54,53 @@ impl<'a> Compiler<'a> {
     fn compile_stmt(&mut self, statement: &Stmt) -> Return {
         statement.accept(self)
     }
+
+    /// Emits a single byte to the chunk
+    fn emit_byte(&mut self, byte: u8, line: u32) {
+        self.chunk.write_byte(byte, line);
+    }
+
+    /// Emits instruction `op`, that expects one operand. If the constant pool already
+    /// exceeds 255 constants, this functions emits the long version of `op`, encoding
+    /// the constant index as 3 operands.
+    fn emit_constant_instruction(&mut self, op: OpCode, operand: Value, line: u32) {
+        let constant_idx = self.chunk.add_constant(operand);
+
+        if constant_idx > 255 {
+            self.emit_byte(op.to_long() as u8, line);
+            self.emit_byte((constant_idx & 255) as u8, line);
+            self.emit_byte(((constant_idx >> 8) & 255) as u8, line);
+            self.emit_byte(((constant_idx >> 16) & 255) as u8, line);
+        } else {
+            self.emit_byte(op as u8, line);
+            self.emit_byte(constant_idx as u8, line);
+        }
+    }
 }
 
 impl StmtVisitor<Return> for Compiler<'_> {
-    fn visit_print(&mut self, stmt: &Expr) -> Return {
-        todo!()
+    fn visit_print(&mut self, token: &Token, expr: &Expr) -> Return {
+        self.compile_expr(expr)?;
+        self.chunk.write_byte(OpCode::Print as u8, token.line);
+        Ok(())
     }
 
-    fn visit_expr(&mut self, expr: &Expr) -> Return {
-        todo!()
+    fn visit_expr(&mut self, token: &Token, expr: &Expr) -> Return {
+        self.compile_expr(expr)?;
+        self.chunk.write_byte(OpCode::Pop as u8, token.line);
+        Ok(())
     }
 
     fn visit_declare_var(&mut self, id: &Token, expr: &Option<Expr>) -> Return {
-        todo!()
+        match expr {
+            Some(expr) => self.compile_expr(expr)?,
+            None => self.emit_constant_instruction(OpCode::Constant, Value::nil(), id.line),
+        }
+
+        let object = self.heap.push(Object::String(id.lexeme.to_string()));
+        self.emit_constant_instruction(OpCode::DefineGlobal, object, id.line);
+
+        Ok(())
     }
 
     fn visit_block(&mut self, statements: &[Stmt]) -> Return {
@@ -103,7 +129,7 @@ impl StmtVisitor<Return> for Compiler<'_> {
         todo!()
     }
 
-    fn visit_return(&mut self, expr: &Expr, line: &u32) -> Return {
+    fn visit_return(&mut self, token: &Token, expr: &Expr) -> Return {
         todo!()
     }
 
@@ -121,23 +147,30 @@ impl ExprVisitor<Return> for Compiler<'_> {
     fn visit_literal(&mut self, token: &Token) -> Return {
         match &token.token {
             TokenType::Number => {
-                self.chunk
-                    .write_constant(Value::number(token.lexeme.parse().unwrap()), token.line);
+                self.emit_constant_instruction(
+                    OpCode::Constant,
+                    Value::number(token.lexeme.parse().unwrap()),
+                    token.line,
+                );
             }
             TokenType::True => {
-                self.chunk.write_constant(Value::boolean(true), token.line);
+                self.emit_constant_instruction(OpCode::Constant, Value::boolean(true), token.line);
             }
             TokenType::False => {
-                self.chunk.write_constant(Value::boolean(false), token.line);
+                self.emit_constant_instruction(OpCode::Constant, Value::boolean(false), token.line);
             }
             TokenType::Nil => {
-                self.chunk.write_constant(Value::nil(), token.line);
+                self.emit_constant_instruction(OpCode::Constant, Value::nil(), token.line);
             }
             TokenType::String => {
                 let object = Object::String(token.lexeme[1..token.lexeme.len() - 1].to_string());
-                self.chunk.write_constant(self.vm.alloc(object), token.line);
+                let object_idx = self.heap.push(object);
+                self.emit_constant_instruction(OpCode::Constant, object_idx, token.line);
             }
-            t => panic!("No such token type: {:?}", t),
+            _ => panic!(
+                "PANIC: Invalid Token {:?} passed to <compiler.visit_binary>",
+                token.token
+            ),
         }
         Ok(())
     }
@@ -146,9 +179,16 @@ impl ExprVisitor<Return> for Compiler<'_> {
         match operator.token {
             TokenType::Minus => {
                 self.compile_expr(expr)?;
-                self.chunk.write_byte(OpCode::Negate as u8, operator.line);
+                self.emit_byte(OpCode::Negate as u8, operator.line);
             }
-            _ => todo!(),
+            TokenType::Bang => {
+                self.compile_expr(expr)?;
+                self.emit_byte(OpCode::Not as u8, operator.line);
+            }
+            _ => panic!(
+                "PANIC: Invalid Token {:?} passed to <compiler.visit_unary>",
+                operator.token
+            ),
         }
 
         Ok(())
@@ -160,12 +200,21 @@ impl ExprVisitor<Return> for Compiler<'_> {
             TokenType::Minus => OpCode::Subtract,
             TokenType::Star => OpCode::Multiply,
             TokenType::Slash => OpCode::Divide,
-            _ => todo!(),
+            TokenType::EqualEqual => OpCode::Equal,
+            TokenType::BangEqual => OpCode::NotEqual,
+            TokenType::LessThan => OpCode::LessThan,
+            TokenType::LessEqual => OpCode::LessEqual,
+            TokenType::GreaterThan => OpCode::GreaterThan,
+            TokenType::GreaterEqual => OpCode::GreaterEqual,
+            _ => panic!(
+                "PANIC: Invalid Token {:?} passed to <compiler.visit_binary>",
+                operator.token
+            ),
         };
 
         self.compile_expr(left)?;
         self.compile_expr(right)?;
-        self.chunk.write_byte(opcode as u8, operator.line);
+        self.emit_byte(opcode as u8, operator.line);
 
         Ok(())
     }
@@ -175,11 +224,19 @@ impl ExprVisitor<Return> for Compiler<'_> {
     }
 
     fn visit_variable(&mut self, id: &Token) -> Return {
-        todo!()
+        let object = self.heap.push(Object::String(id.lexeme.to_string()));
+        self.emit_constant_instruction(OpCode::GetGlobal, object, id.line);
+
+        Ok(())
     }
 
     fn visit_assignment(&mut self, id: &Token, assignment: &Expr) -> Return {
-        todo!()
+        self.compile_expr(assignment)?;
+
+        let object = self.heap.push(Object::String(id.lexeme.to_string()));
+        self.emit_constant_instruction(OpCode::SetGlobal, object, id.line);
+
+        Ok(())
     }
 
     fn visit_and(&mut self, left: &Expr, right: &Expr) -> Return {

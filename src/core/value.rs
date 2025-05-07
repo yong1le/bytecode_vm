@@ -30,7 +30,19 @@ impl std::fmt::Debug for Value {
     }
 }
 
-// Constructors
+impl Value {
+    pub fn is_truthy(&self) -> bool {
+        match self {
+            n if n.is_nil() => false,
+            b if b.is_boolean() => b.as_boolean(),
+            n if n.is_number() => true,
+            o if o.is_object() => true,
+            _ => panic!("Inavlid bit sequence for value"),
+        }
+    }
+}
+
+// Nil
 impl Value {
     #[inline]
     pub fn nil() -> Self {
@@ -45,17 +57,18 @@ impl Value {
     }
 }
 
+// Boolean
 impl Value {
     #[inline]
     pub fn boolean(b: bool) -> Self {
         Self {
-            bits: QNAN | if b { TRUE_TAG } else { FALSE_TAG },
+            bits: QNAN | (if b { TRUE_TAG } else { FALSE_TAG }),
         }
     }
 
     #[inline]
     pub fn is_boolean(&self) -> bool {
-        (self.bits | 1) == TRUE_TAG
+        (self.bits | 1) == TRUE_TAG | QNAN
     }
 
     #[inline]
@@ -64,6 +77,7 @@ impl Value {
     }
 }
 
+// Number
 impl Value {
     #[inline]
     pub fn number(n: f64) -> Self {
@@ -81,6 +95,7 @@ impl Value {
     }
 }
 
+// Object
 impl Value {
     #[inline]
     pub fn object(ptr: usize) -> Self {

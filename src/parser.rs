@@ -1,26 +1,13 @@
 use std::{iter::Peekable, rc::Rc, vec};
 
-use thiserror::Error;
-
 use crate::{
     ast::{expr::Expr, stmt::Stmt},
-    core::token::{Token, TokenType},
-    scanner::{ScanError, Scanner},
+    core::{
+        errors::{InterpretError, SyntaxError},
+        token::{Token, TokenType},
+    },
+    scanner::Scanner,
 };
-
-#[derive(Debug, Error)]
-pub enum SyntaxError {
-    #[error("{0}")]
-    ScanError(ScanError),
-    #[error("[line {0}]: Error at '{1}': Expected {2}.")]
-    ExpectedChar(u32, String, String),
-    #[error("[line {0}]: Error at '{1}': Expected expression.")]
-    ExpectedExpression(u32, String),
-    #[error("Unexpected end of file.")]
-    UnexpectedEOF,
-    #[error("[line {0}]: Error at '=': Invalid assignment.")]
-    InvalidAssignment(u32),
-}
 
 /// An iterator over the statements in the code.
 pub struct Parser<'a> {
@@ -39,42 +26,42 @@ impl<'a> Parser<'a> {
     /// Advances to the next token to parse. If there are no more tokens to parse,
     /// An `UnexpectedEOF` error is returned, because `advance()` is only called when
     /// the grammar expects another function
-    fn advance(&mut self) -> Result<Token, SyntaxError> {
+    fn advance(&mut self) -> Result<Token, InterpretError> {
         match self.tokens.next() {
             Some(Ok(t)) => Ok(t),
-            Some(Err(e)) => Err(SyntaxError::ScanError(e)),
-            None => Err(SyntaxError::UnexpectedEOF),
+            Some(Err(e)) => Err(e),
+            None => Err(InterpretError::Syntax(SyntaxError::UnexpectedEOF)),
         }
     }
 
     /// Peeks at the next token to parse. If there are no more tokens to parse,
     /// An `UnexpectedEOF` error is returned, because `peek()` is only called when
     /// the grammar expects another function
-    fn peek(&mut self) -> Result<&Token, SyntaxError> {
+    fn peek(&mut self) -> Result<&Token, InterpretError> {
         match self.tokens.peek() {
             Some(Ok(t)) => Ok(t),
-            Some(Err(e)) => Err(SyntaxError::ScanError(e.to_owned())),
-            None => Err(SyntaxError::UnexpectedEOF),
+            Some(Err(e)) => Err(e.to_owned()),
+            None => Err(InterpretError::Syntax(SyntaxError::UnexpectedEOF)),
         }
     }
 
     /// Advances to the next token to parse if the next token is in `tokens`. If
     /// the token is not in `tokens`, an `SyntaxError::ExpectedChar` error is returned.
-    fn consume(&mut self, token: TokenType) -> Result<Token, SyntaxError> {
+    fn consume(&mut self, token: TokenType) -> Result<Token, InterpretError> {
         let next_token = match self.tokens.peek() {
             Some(Ok(t)) => t,
-            Some(Err(e)) => return Err(SyntaxError::ScanError(e.to_owned())),
-            None => return Err(SyntaxError::UnexpectedEOF),
+            Some(Err(e)) => return Err(e.to_owned()),
+            None => return Err(InterpretError::Syntax(SyntaxError::UnexpectedEOF)),
         };
 
         if token == next_token.token {
             self.advance()
         } else {
-            Err(SyntaxError::ExpectedChar(
+            Err(InterpretError::Syntax(SyntaxError::ExpectedChar(
                 next_token.line,
                 next_token.lexeme.to_owned(),
                 format!("{:?}", token),
-            ))
+            )))
         }
     }
 
@@ -87,7 +74,7 @@ impl<'a> Parser<'a> {
         loop {
             let cur_token = match self.advance() {
                 Ok(t) => t.token,
-                Err(SyntaxError::UnexpectedEOF) => return,
+                Err(InterpretError::Syntax(SyntaxError::UnexpectedEOF)) => return,
                 Err(_) => TokenType::Nil, // Anything that doesn't match below should work
             };
 
@@ -97,7 +84,7 @@ impl<'a> Parser<'a> {
 
             let next_token = match self.peek() {
                 Ok(t) => &t.token,
-                Err(SyntaxError::UnexpectedEOF) => return,
+                Err(InterpretError::Syntax(SyntaxError::UnexpectedEOF)) => return,
                 Err(_) => &TokenType::Nil,
             };
 
@@ -114,7 +101,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn declaration(&mut self) -> Result<Stmt, SyntaxError> {
+    fn declaration(&mut self) -> Result<Stmt, InterpretError> {
         let t = self.peek()?;
 
         match t.token {
@@ -134,7 +121,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn declare_var(&mut self) -> Result<Stmt, SyntaxError> {
+    fn declare_var(&mut self) -> Result<Stmt, InterpretError> {
         let identifier_token = self.consume(TokenType::Identifier)?;
 
         if let Ok(_equals) = self.consume(TokenType::Equal) {
@@ -147,7 +134,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn declare_func(&mut self) -> Result<Stmt, SyntaxError> {
+    fn declare_func(&mut self) -> Result<Stmt, InterpretError> {
         let identifier_token = self.consume(TokenType::Identifier)?;
 
         let mut params = Vec::new();
@@ -175,11 +162,11 @@ impl<'a> Parser<'a> {
         let body = match self.statement()? {
             Stmt::Block(v) => v,
             _ => {
-                return Err(SyntaxError::ExpectedChar(
+                return Err(InterpretError::Syntax(SyntaxError::ExpectedChar(
                     closing.line,
                     ")".to_string(),
                     "function body".to_string(),
-                ))
+                )))
             }
         };
 
@@ -190,7 +177,7 @@ impl<'a> Parser<'a> {
         ))
     }
 
-    fn declare_class(&mut self) -> Result<Stmt, SyntaxError> {
+    fn declare_class(&mut self) -> Result<Stmt, InterpretError> {
         let identifier_token = self.consume(TokenType::Identifier)?;
         let mut methods = Vec::new();
 
@@ -229,13 +216,13 @@ impl<'a> Parser<'a> {
         Ok(Stmt::DeclareClass(identifier_token, superclass, methods))
     }
 
-    fn statement(&mut self) -> Result<Stmt, SyntaxError> {
+    fn statement(&mut self) -> Result<Stmt, InterpretError> {
         let t = self.peek()?;
 
         match t.token {
             TokenType::Print => {
-                self.advance()?;
-                self.print_stmt()
+                let actual = self.advance()?;
+                self.print_stmt(actual)
             }
             TokenType::LeftBrace => {
                 self.advance()?;
@@ -255,19 +242,19 @@ impl<'a> Parser<'a> {
             }
             TokenType::Return => {
                 let actual = self.advance()?;
-                self.return_stmt(actual.line)
+                self.return_stmt(actual)
             }
             _ => self.expression_stmt(),
         }
     }
 
-    fn print_stmt(&mut self) -> Result<Stmt, SyntaxError> {
+    fn print_stmt(&mut self, token: Token) -> Result<Stmt, InterpretError> {
         let print_expr = self.expression()?;
         self.consume(TokenType::Semicolon)?;
-        Ok(Stmt::Print(print_expr))
+        Ok(Stmt::Print(token, print_expr))
     }
 
-    fn block(&mut self) -> Result<Stmt, SyntaxError> {
+    fn block(&mut self) -> Result<Stmt, InterpretError> {
         let mut statements = vec![];
 
         loop {
@@ -282,7 +269,7 @@ impl<'a> Parser<'a> {
         Ok(Stmt::Block(statements))
     }
 
-    fn if_stmt(&mut self) -> Result<Stmt, SyntaxError> {
+    fn if_stmt(&mut self) -> Result<Stmt, InterpretError> {
         // Match the pattern (<condition>)
         self.consume(TokenType::LeftParen)?;
         let condition = self.expression()?;
@@ -302,7 +289,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn while_stmt(&mut self) -> Result<Stmt, SyntaxError> {
+    fn while_stmt(&mut self) -> Result<Stmt, InterpretError> {
         self.consume(TokenType::LeftParen)?;
         let condition = self.expression()?;
         self.consume(TokenType::RightParen)?;
@@ -312,8 +299,9 @@ impl<'a> Parser<'a> {
         Ok(Stmt::While(condition, Box::new(while_block)))
     }
 
-    fn for_stmt(&mut self) -> Result<Stmt, SyntaxError> {
+    fn for_stmt(&mut self) -> Result<Stmt, InterpretError> {
         let token = self.consume(TokenType::LeftParen)?;
+        let line = token.line;
 
         let initializer = match self.peek()?.token {
             TokenType::Semicolon => {
@@ -342,7 +330,7 @@ impl<'a> Parser<'a> {
         let mut body = self.statement()?;
 
         if let Some(inc) = increment {
-            body = Stmt::Block(vec![body, Stmt::Expr(inc)]);
+            body = Stmt::Block(vec![body, Stmt::Expr(token, inc)]);
         };
 
         match condition {
@@ -354,7 +342,7 @@ impl<'a> Parser<'a> {
                     Expr::Literal(Token {
                         token: TokenType::True,
                         lexeme: "true".to_string(),
-                        line: token.line,
+                        line,
                     }),
                     Box::new(body),
                 );
@@ -368,33 +356,34 @@ impl<'a> Parser<'a> {
         Ok(body)
     }
 
-    fn return_stmt(&mut self, line: u32) -> Result<Stmt, SyntaxError> {
+    fn return_stmt(&mut self, token: Token) -> Result<Stmt, InterpretError> {
         if self.consume(TokenType::Semicolon).is_ok() {
+            let line = token.line;
             return Ok(Stmt::Return(
+                token,
                 Expr::Literal(Token {
                     token: TokenType::Nil,
                     lexeme: "nil".to_string(),
                     line,
                 }),
-                line,
             ));
         }
         let expr = self.expression()?;
         self.consume(TokenType::Semicolon)?;
-        Ok(Stmt::Return(expr, line))
+        Ok(Stmt::Return(token, expr))
     }
 
-    fn expression_stmt(&mut self) -> Result<Stmt, SyntaxError> {
+    fn expression_stmt(&mut self) -> Result<Stmt, InterpretError> {
         let expr = self.expression()?;
-        self.consume(TokenType::Semicolon)?;
-        Ok(Stmt::Expr(expr))
+        let token = self.consume(TokenType::Semicolon)?;
+        Ok(Stmt::Expr(token, expr))
     }
 
-    fn expression(&mut self) -> Result<Expr, SyntaxError> {
+    fn expression(&mut self) -> Result<Expr, InterpretError> {
         self.assignment()
     }
 
-    fn assignment(&mut self) -> Result<Expr, SyntaxError> {
+    fn assignment(&mut self) -> Result<Expr, InterpretError> {
         let expr = self.logic_or()?;
 
         let t = self.peek()?;
@@ -407,14 +396,16 @@ impl<'a> Parser<'a> {
                 match expr {
                     Expr::Variable(id) => Ok(Expr::Assign(id, Box::new(value))),
                     Expr::Get(obj, prop) => Ok(Expr::Set(obj, prop, Box::new(value))),
-                    _ => Err(SyntaxError::InvalidAssignment(actual.line)),
+                    _ => Err(InterpretError::Syntax(SyntaxError::InvalidAssignment(
+                        actual.line,
+                    ))),
                 }
             }
             _ => Ok(expr),
         }
     }
 
-    fn logic_or(&mut self) -> Result<Expr, SyntaxError> {
+    fn logic_or(&mut self) -> Result<Expr, InterpretError> {
         let mut expr = self.logic_and()?;
 
         loop {
@@ -433,7 +424,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn logic_and(&mut self) -> Result<Expr, SyntaxError> {
+    fn logic_and(&mut self) -> Result<Expr, InterpretError> {
         let mut expr = self.equality()?;
 
         loop {
@@ -452,7 +443,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn equality(&mut self) -> Result<Expr, SyntaxError> {
+    fn equality(&mut self) -> Result<Expr, InterpretError> {
         let mut expr = self.comparison()?;
 
         loop {
@@ -471,7 +462,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn comparison(&mut self) -> Result<Expr, SyntaxError> {
+    fn comparison(&mut self) -> Result<Expr, InterpretError> {
         let mut expr = self.term()?;
 
         loop {
@@ -493,7 +484,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn term(&mut self) -> Result<Expr, SyntaxError> {
+    fn term(&mut self) -> Result<Expr, InterpretError> {
         let mut expr = self.factor()?;
 
         loop {
@@ -512,7 +503,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn factor(&mut self) -> Result<Expr, SyntaxError> {
+    fn factor(&mut self) -> Result<Expr, InterpretError> {
         let mut expr = self.unary()?;
 
         loop {
@@ -531,7 +522,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn unary(&mut self) -> Result<Expr, SyntaxError> {
+    fn unary(&mut self) -> Result<Expr, InterpretError> {
         let t = self.peek()?;
 
         match t.token {
@@ -544,7 +535,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn call(&mut self) -> Result<Expr, SyntaxError> {
+    fn call(&mut self) -> Result<Expr, InterpretError> {
         let mut expr = self.primary()?;
 
         loop {
@@ -580,7 +571,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn primary(&mut self) -> Result<Expr, SyntaxError> {
+    fn primary(&mut self) -> Result<Expr, InterpretError> {
         let t = self.advance()?;
 
         let expr = match &t.token {
@@ -602,7 +593,11 @@ impl<'a> Parser<'a> {
 
                 Expr::Super(t, prop)
             }
-            _ => return Err(SyntaxError::ExpectedExpression(t.line, t.lexeme)),
+            _ => {
+                return Err(InterpretError::Syntax(
+                    SyntaxError::ExpectedExpression(t.line, t.lexeme),
+                ))
+            }
         };
 
         Ok(expr)
@@ -610,7 +605,7 @@ impl<'a> Parser<'a> {
 }
 
 impl Iterator for Parser<'_> {
-    type Item = Result<Expr, SyntaxError>;
+    type Item = Result<Stmt, InterpretError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.tokens.peek() {
@@ -623,7 +618,7 @@ impl Iterator for Parser<'_> {
             _ => (),
         }
 
-        match self.expression() {
+        match self.declaration() {
             Ok(s) => Some(Ok(s)),
             Err(e) => {
                 self.synchronize();

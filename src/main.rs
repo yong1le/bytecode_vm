@@ -2,6 +2,7 @@ mod ast;
 mod chunk;
 mod compiler;
 mod core;
+mod heap;
 mod opcode;
 mod parser;
 mod scanner;
@@ -21,29 +22,26 @@ use compiler::Compiler;
 use opcode::OpCode;
 use parser::Parser;
 use scanner::Scanner;
-use thiserror::Error;
 use vm::VM;
 
-#[derive(Debug, Error)]
-pub enum InterpretError {
-    #[error("Compile error")]
-    CompileError,
-    #[error("Runtime error")]
-    RuntimeError,
-}
-
-fn interpret(source: &str) {
+fn interpret(source: &str, vm: &mut VM) {
     let scanner = Scanner::new(source);
     let parser = Parser::new(scanner);
 
-    let mut vm = VM::new();
-    let mut compiler = Compiler::new(parser, &mut vm);
-    let chunk = compiler.compile().unwrap();
+    let chunk = Compiler::new(parser, vm.heap()).compile();
 
-    vm.run(&chunk).unwrap();
+    match chunk {
+        Ok(chunk) => {
+            if let Err(e) = vm.run(chunk) {
+                eprintln!("{e}")
+            }
+        }
+        Err(e) => eprintln!("{e}"),
+    }
 }
 
 fn repl() {
+    let mut vm = VM::new();
     loop {
         print!("> ");
         io::stdout().flush().unwrap();
@@ -53,18 +51,18 @@ fn repl() {
             .read_line(&mut line)
             .expect("Failed to read line");
 
-        interpret(&line);
+        interpret(&line, &mut vm);
     }
 }
 
 fn run_file(path: &str) {
     let mut file = File::open(path).expect("Failed to open file");
-
     let mut contents = String::new();
     file.read_to_string(&mut contents)
         .expect("Failed to read file");
 
-    interpret(&contents);
+    let mut vm = VM::new();
+    interpret(&contents, &mut vm);
 }
 
 fn main() {

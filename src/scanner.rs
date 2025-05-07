@@ -1,16 +1,8 @@
-use thiserror::Error;
-
+use crate::core::errors::{InterpretError, ScanError};
 use crate::core::token::{Token, TokenType};
 use std::iter::Peekable;
 use std::str::Chars;
 
-#[derive(Debug, Error, Clone)]
-pub enum ScanError {
-    #[error("[line {0}: Error: Unterminated string.")]
-    UnterminatedString(u32),
-    #[error("[line {0}: Error at '{1}': Unexpected character.")]
-    UnexpectedCharacter(u32, char),
-}
 /// An iterator over the tokens in the source code.
 pub struct Scanner<'a> {
     /// An iterator over the characters in the source code.
@@ -37,7 +29,7 @@ impl<'a> Scanner<'a> {
     /// Tokenizes a string from the source code.
     ///
     /// Returns a `ScanError::UnterminatedString` if the string is not terminated.
-    fn tokenize_string(&mut self) -> Result<(TokenType, String), ScanError> {
+    fn tokenize_string(&mut self) -> Result<(TokenType, String), InterpretError> {
         let mut lexeme = String::from('"');
         loop {
             match self.peek() {
@@ -52,7 +44,9 @@ impl<'a> Scanner<'a> {
                     self.advance();
                 }
                 None => {
-                    return Err(ScanError::UnterminatedString(self.line));
+                    return Err(InterpretError::Scan(ScanError::UnterminatedString(
+                        self.line,
+                    )));
                 }
                 Some(&ch) => {
                     lexeme.push(ch);
@@ -67,7 +61,7 @@ impl<'a> Scanner<'a> {
     /// Tokenizes a number from the source code.
     ///
     /// Numbers cannot be preceded by decimals nor can they be end with a decimal.
-    fn tokenize_number(&mut self, init: char) -> Result<(TokenType, String), ScanError> {
+    fn tokenize_number(&mut self, init: char) -> Result<(TokenType, String), InterpretError> {
         let mut lexeme = String::from(init);
         let mut has_decimal = false;
 
@@ -104,7 +98,7 @@ impl<'a> Scanner<'a> {
     /// Tokenizes an identifier from the source code.
     ///
     /// Identifiers can contain letters, digits, and underscores.
-    fn tokenize_identifier(&mut self, init: char) -> Result<(TokenType, String), ScanError> {
+    fn tokenize_identifier(&mut self, init: char) -> Result<(TokenType, String), InterpretError> {
         let mut lexeme = String::from(init);
 
         while let Some(&ch) = self.peek() {
@@ -194,18 +188,16 @@ impl<'a> Scanner<'a> {
     }
 
     fn add_token(&mut self, token: TokenType, lexeme: String, line: u32) -> Token {
-        let token = Token {
+        Token {
             token,
             lexeme,
             line,
-        };
-
-        token
+        }
     }
 }
 
 impl Iterator for Scanner<'_> {
-    type Item = Result<Token, ScanError>;
+    type Item = Result<Token, InterpretError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.skip_whitespace();
@@ -275,7 +267,10 @@ impl Iterator for Scanner<'_> {
             '"' => self.tokenize_string(),
             d if d.is_ascii_digit() => self.tokenize_number(d),
             ch if ch.is_alphabetic() || ch == '_' => self.tokenize_identifier(ch),
-            c => Err(ScanError::UnexpectedCharacter(self.line.to_owned(), c)),
+            c => Err(InterpretError::Scan(ScanError::UnexpectedCharacter(
+                self.line.to_owned(),
+                c,
+            ))),
         };
 
         match result {
