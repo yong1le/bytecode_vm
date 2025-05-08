@@ -5,7 +5,7 @@ use crate::{
     },
     chunk::Chunk,
     core::{
-        errors::InterpretError,
+        errors::{CompileError, InterpretError},
         token::{Token, TokenType},
         value::{Object, Value},
     },
@@ -16,10 +16,33 @@ use crate::{
 
 type Return = Result<(), InterpretError>;
 
+struct Local {
+    name: String,
+    depth: usize,
+    init: bool,
+}
+
+impl Local {
+    pub fn new(name: String, depth: usize) -> Self {
+        Self {
+            name,
+            depth,
+            init: false,
+        }
+    }
+
+    pub fn initialize(&mut self) {
+        self.init = true;
+    }
+}
+
 pub struct Compiler<'a> {
     statements: Parser<'a>,
     chunk: Chunk,
     heap: &'a mut Heap,
+    /// The depth of nested scopes the compiler is currently in, 0 is the global scope
+    scope_depth: usize,
+    locals: Vec<Local>,
 }
 
 impl<'a> Compiler<'a> {
@@ -28,9 +51,13 @@ impl<'a> Compiler<'a> {
             statements,
             heap,
             chunk: Chunk::new(),
+            scope_depth: 0,
+            locals: Vec::new(),
         }
     }
 
+    /// Compiles the statements in the compiler into a chunk of bytecode to be used
+    /// by the virtual machine. This function consumes the compiler instance.
     pub fn compile(mut self) -> Result<Chunk, InterpretError> {
         while let Some(stmt) = self.statements.next() {
             match stmt {
@@ -60,20 +87,67 @@ impl<'a> Compiler<'a> {
         self.chunk.write_byte(byte, line);
     }
 
-    /// Emits instruction `op`, that expects one operand. If the constant pool already
-    /// exceeds 255 constants, this functions emits the long version of `op`, encoding
-    /// the constant index as 3 operands.
+    /// Emits instruction `op` that expects one operand pointing to an index on the
+    /// constants pool. If the operand does not point to the operand pool, use
+    /// `emit_operand_instruction` instead.
     fn emit_constant_instruction(&mut self, op: OpCode, operand: Value, line: u32) {
         let constant_idx = self.chunk.add_constant(operand);
 
-        if constant_idx > 255 {
+        self.emit_operand_instruction(op, constant_idx, line);
+    }
+
+    /// Emits instruction `op` that expects one operand `index`. If the operand exceeds
+    /// u8 (255), this functions emit the long version of `op`, encoding the single `index`
+    /// operand as 3 operands.
+    fn emit_operand_instruction(&mut self, op: OpCode, index: usize, line: u32) {
+        if index > 255 {
             self.emit_byte(op.to_long() as u8, line);
-            self.emit_byte((constant_idx & 255) as u8, line);
-            self.emit_byte(((constant_idx >> 8) & 255) as u8, line);
-            self.emit_byte(((constant_idx >> 16) & 255) as u8, line);
+            self.emit_byte((index & 255) as u8, line);
+            self.emit_byte(((index >> 8) & 255) as u8, line);
+            self.emit_byte(((index >> 16) & 255) as u8, line);
         } else {
             self.emit_byte(op as u8, line);
-            self.emit_byte(constant_idx as u8, line);
+            self.emit_byte(index as u8, line);
+        }
+    }
+
+    /// Declares a local variable `name` with the current scope depth, storing
+    /// it into the internal locals array
+    fn declare_local(&mut self, name: String) {
+        if self.scope_depth == 0 {
+            return;
+        }
+
+        // TODO: Check if name is already declared in the same scope
+        if self
+            .locals
+            .iter()
+            .any(|l| l.depth == self.scope_depth && l.name == name)
+        {
+            panic!("Compile: Local variable already declared");
+        }
+
+        self.locals.push(Local::new(name, self.scope_depth));
+    }
+
+    fn define_local(&mut self) {
+        let last = self.locals.len() - 1;
+        self.locals[last].init = true;
+    }
+
+    fn resolve_local(&self, name: &str, line: u32) -> Result<Option<usize>, InterpretError> {
+        match self.locals.iter().rposition(|l| l.name == *name) {
+            None => Ok(None),
+            Some(index) => {
+                let local = self.locals.get(index).unwrap();
+                if !local.init {
+                    Err(InterpretError::Compile(CompileError::SelfInitialization(
+                        line,
+                    )))
+                } else {
+                    Ok(Some(index))
+                }
+            }
         }
     }
 }
@@ -81,30 +155,45 @@ impl<'a> Compiler<'a> {
 impl StmtVisitor<Return> for Compiler<'_> {
     fn visit_print(&mut self, token: &Token, expr: &Expr) -> Return {
         self.compile_expr(expr)?;
-        self.chunk.write_byte(OpCode::Print as u8, token.line);
+        self.emit_byte(OpCode::Print as u8, token.line);
         Ok(())
     }
 
     fn visit_expr(&mut self, token: &Token, expr: &Expr) -> Return {
         self.compile_expr(expr)?;
-        self.chunk.write_byte(OpCode::Pop as u8, token.line);
+        self.emit_byte(OpCode::Pop as u8, token.line);
         Ok(())
     }
 
     fn visit_declare_var(&mut self, id: &Token, expr: &Option<Expr>) -> Return {
+        if self.scope_depth > 0 {
+            self.declare_local(id.lexeme.to_string());
+        }
+
         match expr {
             Some(expr) => self.compile_expr(expr)?,
             None => self.emit_constant_instruction(OpCode::Constant, Value::nil(), id.line),
         }
 
-        let object = self.heap.push(Object::String(id.lexeme.to_string()));
-        self.emit_constant_instruction(OpCode::DefineGlobal, object, id.line);
-
+        if self.scope_depth == 0 {
+            let object = self.heap.push(Object::String(id.lexeme.to_string()));
+            self.emit_constant_instruction(OpCode::DefineGlobal, object, id.line);
+        } else {
+            self.define_local();
+        }
         Ok(())
     }
 
     fn visit_block(&mut self, statements: &[Stmt]) -> Return {
-        todo!()
+        self.scope_depth += 1;
+        for stmt in statements {
+            self.compile_stmt(stmt)?;
+        }
+        self.scope_depth -= 1;
+
+        // Remove all local variables from that block
+        self.locals.retain(|l| l.depth <= self.scope_depth);
+        Ok(())
     }
 
     fn visit_if(
@@ -224,8 +313,15 @@ impl ExprVisitor<Return> for Compiler<'_> {
     }
 
     fn visit_variable(&mut self, id: &Token) -> Return {
-        let object = self.heap.push(Object::String(id.lexeme.to_string()));
-        self.emit_constant_instruction(OpCode::GetGlobal, object, id.line);
+        match self.resolve_local(&id.lexeme, id.line)? {
+            Some(index) => {
+                self.emit_operand_instruction(OpCode::GetLocal, index, id.line);
+            }
+            None => {
+                let object_idx = self.heap.push(Object::String(id.lexeme.to_string()));
+                self.emit_constant_instruction(OpCode::GetGlobal, object_idx, id.line);
+            }
+        }
 
         Ok(())
     }
@@ -233,8 +329,15 @@ impl ExprVisitor<Return> for Compiler<'_> {
     fn visit_assignment(&mut self, id: &Token, assignment: &Expr) -> Return {
         self.compile_expr(assignment)?;
 
-        let object = self.heap.push(Object::String(id.lexeme.to_string()));
-        self.emit_constant_instruction(OpCode::SetGlobal, object, id.line);
+        match self.resolve_local(&id.lexeme, id.line)? {
+            Some(index) => {
+                self.emit_operand_instruction(OpCode::SetLocal, index, id.line);
+            }
+            None => {
+                let object = self.heap.push(Object::String(id.lexeme.to_string()));
+                self.emit_constant_instruction(OpCode::SetGlobal, object, id.line);
+            }
+        }
 
         Ok(())
     }

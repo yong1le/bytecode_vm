@@ -179,7 +179,7 @@ pub enum OpCode {
     GetGlobal,
     GetGlobalLong,
 
-    /// Sets the global variable and to the top value of the stack.
+    /// Sets the global variable to the top value of the stack.
     ///
     /// ### Operand
     /// - 1 byte: index into constant pool for variable name
@@ -189,6 +189,28 @@ pub enum OpCode {
     /// - After: [value]
     SetGlobal,
     SetGlobalLong,
+
+    /// Pushes the value of a local variable onto the stack.
+    ///
+    /// ### Operand
+    /// - 1 byte: index into constant pool for variable name
+    ///
+    /// ### Stack effect
+    /// - Before: []
+    /// - After: [value]
+    GetLocal,
+    GetLocalLong,
+
+    /// Sets the local variable to the top value of the stack.
+    ///
+    /// ### Operand
+    /// - 1 byte: index into stack for variable name
+    ///
+    /// ### Stack effect
+    /// - Before: [value]
+    /// - After: [value]
+    SetLocal,
+    SetLocalLong,
 
     /// Returns from the current function.
     ///

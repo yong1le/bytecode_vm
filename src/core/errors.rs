@@ -10,10 +10,8 @@ pub enum InterpretError {
     Compile(CompileError),
     #[error("{0}")]
     Runtime(RuntimeError),
-    #[error("[line {0}]: Error: {1}")]
-    Panic(u32, String),
-    #[error("[line {0}]: Object pointer accessed after object was deallocated.")]
-    Deallocated(u32),
+    #[error("PANIC: {0}")]
+    Panic(PanicError),
 }
 
 #[derive(Debug, Error, Clone)]
@@ -40,6 +38,8 @@ pub enum SyntaxError {
 pub enum CompileError {
     #[error("[line {0}]: Invalid Operation Code: {1}")]
     InvalidOpCode(u32, u8),
+    #[error("[line {0}]: Error': Cannot use variable in its own initializer.")]
+    SelfInitialization(u32),
 }
 
 #[derive(Debug, Error, Clone)]
@@ -56,4 +56,14 @@ pub enum RuntimeError {
     InvalidPropertyAccess(u32, String, String),
     #[error("[line {0}] Error: '{1}' attempting to inherit from non-class value '{2}'.")]
     InheritFromNonClass(u32, String, String),
+}
+
+#[derive(Debug, Error, Clone)]
+pub enum PanicError {
+    #[error("[line {0}]: Error: {1}")]
+    General(u32, String),
+    #[error("[line {0}]: Object pointer accessed after object was deallocated.")]
+    DeallocatedObject(u32),
+    #[error("[line {0}]: Passed non-object operand as variable.")]
+    NonObjectVariable(u32),
 }

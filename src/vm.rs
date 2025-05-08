@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     core::{
-        errors::{CompileError, InterpretError, RuntimeError},
+        errors::{CompileError, InterpretError, PanicError, RuntimeError},
         value::Object,
     },
     heap::{Heap, HeapIndex},
@@ -115,9 +115,11 @@ impl VM {
                 Ok(OpCode::Print) => {
                     let constant = self.pop();
                     println!("{}", self.format_value(&constant));
+                    self.ip += 1;
                 }
                 Ok(OpCode::Pop) => {
                     self.pop();
+                    self.ip += 1;
                 }
                 Ok(OpCode::DefineGlobal) => self.run_define_global(false)?,
                 Ok(OpCode::DefineGlobalLong) => self.run_define_global(true)?,
@@ -125,12 +127,17 @@ impl VM {
                 Ok(OpCode::GetGlobalLong) => self.run_get_global(true)?,
                 Ok(OpCode::SetGlobal) => self.run_set_global(false)?,
                 Ok(OpCode::SetGlobalLong) => self.run_set_global(true)?,
+                Ok(OpCode::GetLocal) => self.run_get_local(false)?,
+                Ok(OpCode::GetLocalLong) => self.run_get_local(true)?,
+                Ok(OpCode::SetLocal) => self.run_set_local(false)?,
+                Ok(OpCode::SetLocalLong) => self.run_set_local(true)?,
                 Ok(OpCode::Return) => self.run_return()?,
                 Err(_) => {
+                    self.ip += 1;
                     return Err(InterpretError::Compile(CompileError::InvalidOpCode(
                         self.chunk.get_line(self.ip),
                         op,
-                    )))
+                    )));
                 }
             }
         }
@@ -140,29 +147,27 @@ impl VM {
 
 // bytecode execution functions
 impl VM {
-    /// Gets the current value in `constant` as specified by the index internal `ip` counter.
-    /// If `long` is set to true, retreives the next 3 bytes in `code` to form the index.
-    /// Advances the internal `ip` counter pass all the used bytes.
-    fn get_constant_operand(&mut self, long: bool) -> Value {
+    /// Reads the operand at the current position of the internal `ip` counter.
+    /// If `long` is set to true, retrieves the next 3 bytes to form the operand, otherwise
+    /// only consumes the current byte. Advances the interal `ip` counter pass all the
+    /// bytes read.
+    fn read_operand(&mut self, long: bool) -> usize {
         if long {
             let low_byte = self.chunk.code[self.ip] as usize;
             let mid_byte = self.chunk.code[self.ip + 1] as usize;
             let high_byte = self.chunk.code[self.ip + 2] as usize;
-            let constant_idx = (high_byte << 16) | (mid_byte << 8) | low_byte;
-            let constant = self.chunk.constants[constant_idx];
             self.ip += 3;
-            constant
+            (high_byte << 16) | (mid_byte << 8) | low_byte
         } else {
-            let constant = self.chunk.constants[self.chunk.code[self.ip] as usize];
             self.ip += 1;
-            constant
+            self.chunk.code[self.ip - 1] as usize
         }
     }
 
     fn run_constant(&mut self, long: bool) -> Return {
         self.ip += 1;
-        let constant = self.get_constant_operand(long);
-        self.push(constant);
+        let index = self.read_operand(long);
+        self.push(self.chunk.constants[index]);
         Ok(())
     }
 
@@ -225,6 +230,8 @@ impl VM {
                 )))
             }
         }
+
+        self.ip += 1;
         Ok(())
     }
 
@@ -245,7 +252,11 @@ impl VM {
                     (Some(Object::String(s1)), Some(Object::String(s2))) => {
                         self.push(Value::boolean(s1 == s2))
                     }
-                    _ => return Err(InterpretError::Deallocated(self.chunk.get_line(self.ip))),
+                    _ => {
+                        return Err(InterpretError::Panic(PanicError::DeallocatedObject(
+                            self.chunk.get_line(self.ip),
+                        )))
+                    }
                 }
             }
             _ => self.push(Value::boolean(false)),
@@ -270,10 +281,10 @@ impl VM {
                 OpCode::GreaterThan => self.push(Value::boolean(n1.as_number() > n2.as_number())),
                 OpCode::GreaterEqual => self.push(Value::boolean(n1.as_number() >= n2.as_number())),
                 _ => {
-                    return Err(InterpretError::Panic(
+                    return Err(InterpretError::Panic(PanicError::General(
                         self.chunk.get_line(self.ip),
                         format!("Invalid OP_CODE: '{:?}'", op),
-                    ))
+                    )))
                 }
             },
             _ => {
@@ -288,25 +299,34 @@ impl VM {
         Ok(())
     }
 
-    fn run_define_global(&mut self, long: bool) -> Return {
-        let ip = self.ip;
-        self.ip += 1;
-        let name = self.get_constant_operand(long);
-        let value = self.pop();
-
+    fn get_variable_name(&mut self, name: &Value, ip: usize) -> Result<String, InterpretError> {
         if name.is_object() {
             match self.get_obj(&name) {
-                Some(Object::String(s)) => {
-                    self.globals.insert(s.to_string(), value);
+                Some(Object::String(s)) => return Ok(s.to_string()),
+                _ => {
+                    return Err(InterpretError::Panic(PanicError::DeallocatedObject(
+                        self.chunk.get_line(ip),
+                    )))
                 }
-                _ => return Err(InterpretError::Deallocated(self.chunk.get_line(ip))),
             }
         } else {
-            return Err(InterpretError::Panic(
+            return Err(InterpretError::Panic(PanicError::NonObjectVariable(
                 self.chunk.get_line(ip),
-                "Variable name is not an object (should never run).".to_string(),
-            ));
+            )));
         }
+    }
+
+    fn run_define_global(&mut self, long: bool) -> Return {
+        let value = self.pop();
+
+        let ip = self.ip;
+        self.ip += 1;
+        let index = self.read_operand(long);
+
+        let name_value = self.chunk.constants[index];
+        let name = self.get_variable_name(&name_value, ip)?;
+
+        self.globals.insert(name, value);
 
         Ok(())
     }
@@ -314,66 +334,66 @@ impl VM {
     fn run_get_global(&mut self, long: bool) -> Return {
         let ip = self.ip;
         self.ip += 1;
-        let name = self.get_constant_operand(long);
+        let index = self.read_operand(long);
 
-        if name.is_object() {
-            match self.get_obj(&name) {
-                Some(Object::String(s)) => {
-                    let value = self.globals.get(s);
-                    match value {
-                        Some(v) => {
-                            self.push(*v);
-                        }
-                        None => {
-                            return Err(InterpretError::Runtime(RuntimeError::NameError(
-                                self.chunk.get_line(ip),
-                                s.to_string(),
-                            )))
-                        }
-                    }
-                }
-                _ => return Err(InterpretError::Deallocated(self.chunk.get_line(ip))),
+        let name_value = self.chunk.constants[index];
+        let name = self.get_variable_name(&name_value, ip)?;
+
+        let value = self.globals.get(&name);
+        match value {
+            Some(v) => {
+                self.push(*v);
             }
-        } else {
-            return Err(InterpretError::Panic(
-                self.chunk.get_line(ip),
-                "Variable name is not an object (should never run).".to_string(),
-            ));
+            None => {
+                return Err(InterpretError::Runtime(RuntimeError::NameError(
+                    self.chunk.get_line(ip),
+                    name,
+                )))
+            }
         }
 
         Ok(())
     }
 
     fn run_set_global(&mut self, long: bool) -> Return {
-        let ip = self.ip;
-        self.ip += 1;
-        let name = self.get_constant_operand(long);
         let value = *self.stack.last().unwrap_or(&Value::nil());
 
-        if name.is_object() {
-            match self.get_obj(&name) {
-                Some(Object::String(s)) => {
-                    if self.globals.contains_key(s) {
-                        self.globals.insert(s.to_string(), value);
-                    } else {
-                        return Err(InterpretError::Runtime(RuntimeError::NameError(
-                            self.chunk.get_line(ip),
-                            s.to_string(),
-                        )));
-                    }
-                }
-                _ => return Err(InterpretError::Deallocated(self.chunk.get_line(ip))),
-            }
+        let ip = self.ip;
+        self.ip += 1;
+        let index = self.read_operand(long);
+
+        let name_value = self.chunk.constants[index];
+        let name = self.get_variable_name(&name_value, ip)?;
+
+        if self.globals.contains_key(&name) {
+            self.globals.insert(name, value);
         } else {
-            return Err(InterpretError::Panic(
+            return Err(InterpretError::Runtime(RuntimeError::NameError(
                 self.chunk.get_line(ip),
-                "Variable name is not an object (should never run).".to_string(),
-            ));
+                name,
+            )));
         }
+
+        Ok(())
+    }
+
+    fn run_get_local(&mut self, long: bool) -> Return {
+        self.ip += 1;
+        let index = self.read_operand(long);
+        self.push(self.stack[index]);
+        Ok(())
+    }
+
+    fn run_set_local(&mut self, long: bool) -> Return {
+        self.ip += 1;
+        let index = self.read_operand(long);
+        self.stack[index] = *self.stack.last().unwrap_or(&Value::nil());
+
         Ok(())
     }
 
     fn run_return(&mut self) -> Return {
+        self.ip += 1;
         Ok(())
     }
 }
