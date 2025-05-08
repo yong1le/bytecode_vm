@@ -79,10 +79,11 @@ impl Chunk {
         offset += 1;
         match OpCode::try_from(instruction) {
             Ok(op) => match op {
-                OpCode::Constant | OpCode::DefineGlobal | OpCode::GetGlobal | OpCode::SetGlobal => {
-                    offset = self.disassemble_constant_instruction(op, offset)
-                }
-                OpCode::ConstantLong
+                OpCode::LoadConstant
+                | OpCode::DefineGlobal
+                | OpCode::GetGlobal
+                | OpCode::SetGlobal => offset = self.disassemble_constant_instruction(op, offset),
+                OpCode::LoadConstantLong
                 | OpCode::DefineGlobalLong
                 | OpCode::GetGlobalLong
                 | OpCode::SetGlobalLong => offset = self.disassemble_long_instruction(op, offset),

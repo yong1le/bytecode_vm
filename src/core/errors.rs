@@ -38,8 +38,10 @@ pub enum SyntaxError {
 pub enum CompileError {
     #[error("[line {0}]: Invalid Operation Code: {1}")]
     InvalidOpCode(u32, u8),
-    #[error("[line {0}]: Error': Cannot use variable in its own initializer.")]
+    #[error("[line {0}]: Error: Cannot use variable in its own initializer.")]
     SelfInitialization(u32),
+    #[error("[line {0}]: Error: '{1}' is already declared in this scope.")]
+    AlreadyDeclared(u32, String),
 }
 
 #[derive(Debug, Error, Clone)]

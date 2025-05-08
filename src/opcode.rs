@@ -7,14 +7,15 @@ pub enum OpCode {
     /// Loads a constant from the constant pool onto the stack.
     ///
     /// ### Operand
-    /// - normal: 1 byte: index into the constant pool
-    /// - long: 3 bytes: index into the constant pool (for large constant pools)
+    /// - 1 byte: index into the constant pool
+    /// - 3 bytes: index into the constant pool (index > 255)
     ///
     /// ### Stack effect
-    /// - Before: []
-    /// - After: [value]
-    Constant,
-    ConstantLong,
+    /// - Before: `[]`
+    /// - After: `[value]`
+    LoadConstant,
+    /// Long version of [`OpCode::LoadConstantLong`]
+    LoadConstantLong,
 
     /// Negates the value on top of the stack.
     ///
@@ -22,8 +23,8 @@ pub enum OpCode {
     /// - None
     ///
     /// ### Stack effect
-    /// - Before: [value]
-    /// - After: [-value]
+    /// - Before: `[value]`
+    /// - After: `[-value]`
     Negate,
 
     /// Applies logical NOT to the value on top of the stack.
@@ -32,8 +33,8 @@ pub enum OpCode {
     /// - None
     ///
     /// ### Stack effect
-    /// - Before: [value]
-    /// - After: [!value]
+    /// - Before: `[value]`
+    /// - After: `[!value]`
     Not,
 
     /// Adds the top two values on the stack.
@@ -42,8 +43,8 @@ pub enum OpCode {
     /// - None
     ///
     /// ### Stack effect
-    /// - Before: [b, a] TOP
-    /// - After: [a+b]
+    /// - Before: `[b, a]` TOP
+    /// - After: `[a+b]`
     Add,
 
     /// Subtracts the top value from the second value on the stack.
@@ -52,8 +53,8 @@ pub enum OpCode {
     /// - None
     ///
     /// ### Stack effect
-    /// - Before: [b, a] TOP
-    /// - After: [b-a]
+    /// - Before: `[b, a]` TOP
+    /// - After: `[b-a]`
     Subtract,
 
     /// Multiplies the top two values on the stack.
@@ -62,8 +63,8 @@ pub enum OpCode {
     /// - None
     ///
     /// ### Stack effect
-    /// - Before: [b, a] TOP
-    /// - After: [a*b]
+    /// - Before: `[b, a]` TOP
+    /// - After: `[a*b]`
     Multiply,
 
     /// Divides the second value by the top value on the stack.
@@ -72,8 +73,8 @@ pub enum OpCode {
     /// - None
     ///
     /// ### Stack effect
-    /// - Before: [b, a] TOP
-    /// - After: [b/a]
+    /// - Before: `[b, a]` TOP
+    /// - After: `[b/a]`
     Divide,
 
     /// Compares the top two values for equality.
@@ -82,8 +83,8 @@ pub enum OpCode {
     /// - None
     ///
     /// ### Stack effect
-    /// - Before: [b, a] TOP
-    /// - After: [a==b]
+    /// - Before: `[b, a]` TOP
+    /// - After: `[a==b]`
     Equal,
 
     /// Compares the top two values for inequality.
@@ -92,8 +93,8 @@ pub enum OpCode {
     /// - None
     ///
     /// ### Stack effect
-    /// - Before: [b, a] TOP
-    /// - After: [a!=b]
+    /// - Before: `[b, a]` TOP
+    /// - After: `[a!=b]`
     NotEqual,
 
     /// Checks if the second value is less than the top value.
@@ -102,8 +103,8 @@ pub enum OpCode {
     /// - None
     ///
     /// ### Stack effect
-    /// - Before: [b, a] TOP
-    /// - After: [b < a]
+    /// - Before: `[b, a]` TOP
+    /// - After: `[b < a]`
     LessThan,
 
     /// Checks if the second value is less than or equal to the top value.
@@ -112,8 +113,8 @@ pub enum OpCode {
     /// - None
     ///
     /// ### Stack effect
-    /// - Before: [b, a] TOP
-    /// - After: [b <= a]
+    /// - Before: `[b, a]` TOP
+    /// - After: `[b <= a]`
     LessEqual,
 
     /// Checks if the second value is greater than the top value.
@@ -122,8 +123,8 @@ pub enum OpCode {
     /// - None
     ///
     /// ### Stack effect
-    /// - Before: [b, a] TOP
-    /// - After: [b > a]
+    /// - Before: `[b, a]` TOP
+    /// - After: `[b > a]`
     GreaterThan,
 
     /// Checks if the second value is greater than or equal to the top value.
@@ -132,8 +133,8 @@ pub enum OpCode {
     /// - None
     ///
     /// ### Stack effect
-    /// - Before: [b, a] TOP
-    /// - After: [b>=a]
+    /// - Before: `[b, a]` TOP
+    /// - After: `[b>=a]`
     GreaterEqual,
 
     /// Pops and prints the top value from the stack.
@@ -142,8 +143,8 @@ pub enum OpCode {
     /// - None
     ///
     /// ### Stack effect
-    /// - Before: [value]
-    /// - After: []
+    /// - Before: `[value]`
+    /// - After: `[]`
     Print,
 
     /// Removes the top value from the stack.
@@ -152,8 +153,8 @@ pub enum OpCode {
     /// - None
     ///
     /// ### Stack effect
-    /// - Before: [value]
-    /// - After: []
+    /// - Before: `[value]`
+    /// - After: `[]`
     Pop,
 
     /// Defines a new global variable and initializes it to the top value
@@ -161,55 +162,65 @@ pub enum OpCode {
     ///
     /// ### Operand
     /// - 1 byte: index into constant pool for variable name
+    /// - 3 bytes: index into constant pool for variable name (index > 255)
     ///
     /// ### Stack effect
-    /// - Before: [value]
-    /// - After: []
+    /// - Before: `[value]`
+    /// - After: `[]`
     DefineGlobal,
+    /// The long version of [`OpCode::DefineGlobal`]
     DefineGlobalLong,
 
     /// Pushes the value of a global variable onto the stack.
     ///
     /// ### Operand
     /// - 1 byte: index into constant pool for variable name
+    /// - 3 bytes: index into constant pool for variable name (index > 255)
     ///
     /// ### Stack effect
-    /// - Before: []
-    /// - After: [value]
+    /// - Before: `[]`
+    /// - After: `[value]`
     GetGlobal,
+    /// The long version of [`OpCode::GetGlobal`]
     GetGlobalLong,
 
     /// Sets the global variable to the top value of the stack.
     ///
     /// ### Operand
     /// - 1 byte: index into constant pool for variable name
+    /// - 3 bytes: index into constant pool for variable name (index > 255)
     ///
     /// ### Stack effect
-    /// - Before: [value]
-    /// - After: [value]
+    /// - Before: `[value]`
+    /// - After: `[value]`
     SetGlobal,
+    /// The long version of [`OpCode::SetGlobal`]
     SetGlobalLong,
 
     /// Pushes the value of a local variable onto the stack.
     ///
     /// ### Operand
     /// - 1 byte: index into constant pool for variable name
+    /// - 3 bytes: index into constant pool for variable name (index > 255)
     ///
     /// ### Stack effect
-    /// - Before: []
-    /// - After: [value]
+    /// - Before: `[]`
+    /// - After: `[value]`
     GetLocal,
+    /// The long version of [`OpCode::GetLocal`]
     GetLocalLong,
 
     /// Sets the local variable to the top value of the stack.
     ///
     /// ### Operand
     /// - 1 byte: index into stack for variable name
+    /// - 3 bytes: index into constant pool for variable name (index > 255)
     ///
     /// ### Stack effect
-    /// - Before: [value]
-    /// - After: [value]
+    /// - Before: `[value]`
+    /// - After: `[value]`
     SetLocal,
+    /// Long version of  [`OpCode::SetLocal`]
     SetLocalLong,
 
     /// Returns from the current function.
@@ -218,17 +229,19 @@ pub enum OpCode {
     /// - None
     ///
     /// ### Stack effect
-    /// - Before: []
-    /// - After: []
+    /// - Before: `[]`
+    /// - After: `[]`
     Return,
 }
 
 impl OpCode {
     pub fn to_long(self) -> Self {
         match self {
-            OpCode::Constant => OpCode::ConstantLong,
+            OpCode::LoadConstant => OpCode::LoadConstantLong,
             OpCode::DefineGlobal => OpCode::DefineGlobalLong,
             OpCode::GetGlobal => OpCode::GetGlobalLong,
+            OpCode::GetLocal => OpCode::GetLocalLong,
+            OpCode::SetLocal => Self::SetLocalLong,
             _ => self,
         }
     }

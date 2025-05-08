@@ -82,7 +82,10 @@ impl VM {
             panic!("Inavlid bit sequence for value");
         }
     }
+}
 
+// bytecode execution functions
+impl VM {
     pub fn run(&mut self, chunk: Chunk) -> Return {
         self.ip = 0;
         self.chunk = chunk;
@@ -98,8 +101,8 @@ impl VM {
             }
 
             match OpCode::try_from(op) {
-                Ok(OpCode::Constant) => self.run_constant(false)?,
-                Ok(OpCode::ConstantLong) => self.run_constant(true)?,
+                Ok(OpCode::LoadConstant) => self.run_constant(false)?,
+                Ok(OpCode::LoadConstantLong) => self.run_constant(true)?,
                 Ok(OpCode::Negate) => self.run_negate()?,
                 Ok(OpCode::Not) => self.run_not()?,
                 Ok(OpCode::Add) => self.run_add()?,
@@ -143,10 +146,7 @@ impl VM {
         }
         Ok(())
     }
-}
 
-// bytecode execution functions
-impl VM {
     /// Reads the operand at the current position of the internal `ip` counter.
     /// If `long` is set to true, retrieves the next 3 bytes to form the operand, otherwise
     /// only consumes the current byte. Advances the interal `ip` counter pass all the
@@ -273,8 +273,8 @@ impl VM {
         match (left, right) {
             (n1, n2) if n1.is_number() && n2.is_number() => match op {
                 OpCode::Subtract => self.push(Value::number(n1.as_number() - n2.as_number())),
-                OpCode::Multiply => self.push(Value::number(n1.as_number() - n2.as_number())),
-                OpCode::Divide => self.push(Value::number(n1.as_number() - n2.as_number())),
+                OpCode::Multiply => self.push(Value::number(n1.as_number() * n2.as_number())),
+                OpCode::Divide => self.push(Value::number(n1.as_number() / n2.as_number())),
                 OpCode::NotEqual => self.push(Value::boolean(n1.as_number() != n2.as_number())),
                 OpCode::LessThan => self.push(Value::boolean(n1.as_number() < n2.as_number())),
                 OpCode::LessEqual => self.push(Value::boolean(n1.as_number() <= n2.as_number())),
@@ -301,18 +301,16 @@ impl VM {
 
     fn get_variable_name(&mut self, name: &Value, ip: usize) -> Result<String, InterpretError> {
         if name.is_object() {
-            match self.get_obj(&name) {
-                Some(Object::String(s)) => return Ok(s.to_string()),
-                _ => {
-                    return Err(InterpretError::Panic(PanicError::DeallocatedObject(
-                        self.chunk.get_line(ip),
-                    )))
-                }
+            match self.get_obj(name) {
+                Some(Object::String(s)) => Ok(s.to_string()),
+                _ => Err(InterpretError::Panic(PanicError::DeallocatedObject(
+                    self.chunk.get_line(ip),
+                ))),
             }
         } else {
-            return Err(InterpretError::Panic(PanicError::NonObjectVariable(
+            Err(InterpretError::Panic(PanicError::NonObjectVariable(
                 self.chunk.get_line(ip),
-            )));
+            )))
         }
     }
 
@@ -365,13 +363,16 @@ impl VM {
         let name_value = self.chunk.constants[index];
         let name = self.get_variable_name(&name_value, ip)?;
 
-        if self.globals.contains_key(&name) {
-            self.globals.insert(name, value);
-        } else {
-            return Err(InterpretError::Runtime(RuntimeError::NameError(
-                self.chunk.get_line(ip),
-                name,
-            )));
+        match self.globals.contains_key(&name) {
+            true => {
+                self.globals.insert(name, value);
+            }
+            false => {
+                return Err(InterpretError::Runtime(RuntimeError::NameError(
+                    self.chunk.get_line(ip),
+                    name,
+                )));
+            }
         }
 
         Ok(())

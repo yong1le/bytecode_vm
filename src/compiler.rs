@@ -113,26 +113,29 @@ impl<'a> Compiler<'a> {
 
     /// Declares a local variable `name` with the current scope depth, storing
     /// it into the internal locals array
-    fn declare_local(&mut self, name: String) {
+    fn declare_local(&mut self, name: String, line: u32) -> Return {
         if self.scope_depth == 0 {
-            return;
+            return Ok(());
         }
 
-        // TODO: Check if name is already declared in the same scope
         if self
             .locals
             .iter()
             .any(|l| l.depth == self.scope_depth && l.name == name)
         {
-            panic!("Compile: Local variable already declared");
+            return Err(InterpretError::Compile(CompileError::AlreadyDeclared(
+                line, name,
+            )));
         }
 
         self.locals.push(Local::new(name, self.scope_depth));
+
+        Ok(())
     }
 
     fn define_local(&mut self) {
         let last = self.locals.len() - 1;
-        self.locals[last].init = true;
+        self.locals[last].initialize();
     }
 
     fn resolve_local(&self, name: &str, line: u32) -> Result<Option<usize>, InterpretError> {
@@ -167,12 +170,12 @@ impl StmtVisitor<Return> for Compiler<'_> {
 
     fn visit_declare_var(&mut self, id: &Token, expr: &Option<Expr>) -> Return {
         if self.scope_depth > 0 {
-            self.declare_local(id.lexeme.to_string());
+            self.declare_local(id.lexeme.to_string(), id.line)?;
         }
 
         match expr {
             Some(expr) => self.compile_expr(expr)?,
-            None => self.emit_constant_instruction(OpCode::Constant, Value::nil(), id.line),
+            None => self.emit_constant_instruction(OpCode::LoadConstant, Value::nil(), id.line),
         }
 
         if self.scope_depth == 0 {
@@ -202,7 +205,9 @@ impl StmtVisitor<Return> for Compiler<'_> {
         if_block: &Stmt,
         else_block: &Option<Box<Stmt>>,
     ) -> Return {
-        todo!()
+        self.compile_expr(condition)?;
+
+        Ok(())
     }
 
     fn visit_while(&mut self, condition: &Expr, while_block: &Stmt) -> Return {
@@ -237,24 +242,32 @@ impl ExprVisitor<Return> for Compiler<'_> {
         match &token.token {
             TokenType::Number => {
                 self.emit_constant_instruction(
-                    OpCode::Constant,
+                    OpCode::LoadConstant,
                     Value::number(token.lexeme.parse().unwrap()),
                     token.line,
                 );
             }
             TokenType::True => {
-                self.emit_constant_instruction(OpCode::Constant, Value::boolean(true), token.line);
+                self.emit_constant_instruction(
+                    OpCode::LoadConstant,
+                    Value::boolean(true),
+                    token.line,
+                );
             }
             TokenType::False => {
-                self.emit_constant_instruction(OpCode::Constant, Value::boolean(false), token.line);
+                self.emit_constant_instruction(
+                    OpCode::LoadConstant,
+                    Value::boolean(false),
+                    token.line,
+                );
             }
             TokenType::Nil => {
-                self.emit_constant_instruction(OpCode::Constant, Value::nil(), token.line);
+                self.emit_constant_instruction(OpCode::LoadConstant, Value::nil(), token.line);
             }
             TokenType::String => {
                 let object = Object::String(token.lexeme[1..token.lexeme.len() - 1].to_string());
                 let object_idx = self.heap.push(object);
-                self.emit_constant_instruction(OpCode::Constant, object_idx, token.line);
+                self.emit_constant_instruction(OpCode::LoadConstant, object_idx, token.line);
             }
             _ => panic!(
                 "PANIC: Invalid Token {:?} passed to <compiler.visit_binary>",
