@@ -11,8 +11,8 @@ pub enum Stmt {
     Expr(Token, Expr),
     DeclareVar(Token, Option<Expr>),
     Block(Vec<Stmt>),
-    If(Expr, Box<Stmt>, Option<Box<Stmt>>),
-    While(Expr, Box<Stmt>),
+    If(Token, Expr, Box<Stmt>, Option<Box<Stmt>>),
+    While(Token, Expr, Box<Stmt>),
     DeclareFunc(Token, Rc<Vec<Token>>, Rc<Vec<Stmt>>),
     Return(Token, Expr),
     DeclareClass(
@@ -28,8 +28,14 @@ pub trait StmtVisitor<T> {
     fn visit_expr(&mut self, token: &Token, expr: &Expr) -> T;
     fn visit_declare_var(&mut self, id: &Token, expr: &Option<Expr>) -> T;
     fn visit_block(&mut self, statements: &[Stmt]) -> T;
-    fn visit_if(&mut self, condition: &Expr, if_block: &Stmt, else_block: &Option<Box<Stmt>>) -> T;
-    fn visit_while(&mut self, condition: &Expr, while_block: &Stmt) -> T;
+    fn visit_if(
+        &mut self,
+        token: &Token,
+        condition: &Expr,
+        if_block: &Stmt,
+        else_block: &Option<Box<Stmt>>,
+    ) -> T;
+    fn visit_while(&mut self, token: &Token, condition: &Expr, while_block: &Stmt) -> T;
     fn visit_declare_func(
         &mut self,
         id: &Token,
@@ -52,8 +58,10 @@ impl Stmt {
             Stmt::Expr(token, expr) => visiter.visit_expr(token, expr),
             Stmt::DeclareVar(id, expr) => visiter.visit_declare_var(id, expr),
             Stmt::Block(statements) => visiter.visit_block(statements),
-            Stmt::If(expr, if_block, else_block) => visiter.visit_if(expr, if_block, else_block),
-            Stmt::While(expr, stmt) => visiter.visit_while(expr, stmt),
+            Stmt::If(token, expr, if_block, else_block) => {
+                visiter.visit_if(token, expr, if_block, else_block)
+            }
+            Stmt::While(token, expr, stmt) => visiter.visit_while(token, expr, stmt),
             Stmt::DeclareFunc(id, params, body) => visiter.visit_declare_func(id, params, body),
             Stmt::Return(token, expr) => visiter.visit_return(token, expr),
             Stmt::DeclareClass(id, parent, methods) => {

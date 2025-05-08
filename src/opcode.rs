@@ -223,6 +223,28 @@ pub enum OpCode {
     /// Long version of  [`OpCode::SetLocal`]
     SetLocalLong,
 
+    /// Jump a # of bytes.
+    ///
+    /// ### Operand
+    /// - 2 bytes: the number of bytes to jump
+    ///
+    /// ### Stack effect
+    /// - Before: `[value]`
+    /// - After: `[value]`
+    Jump,
+
+    /// Jump a # of bytes if the top value of the stack is false.
+    ///
+    /// ### Operand
+    /// - 2 bytes: the number of bytes to jump
+    ///
+    /// ### Stack effect
+    /// - Before: `[value]`
+    /// - After: `[value]`
+    JumpIfFalse,
+
+    Loop,
+
     /// Returns from the current function.
     ///
     /// ### Operand
@@ -232,6 +254,9 @@ pub enum OpCode {
     /// - Before: `[]`
     /// - After: `[]`
     Return,
+
+    /// No operation, discards the byte.
+    Nop,
 }
 
 impl OpCode {
@@ -241,7 +266,7 @@ impl OpCode {
             OpCode::DefineGlobal => OpCode::DefineGlobalLong,
             OpCode::GetGlobal => OpCode::GetGlobalLong,
             OpCode::GetLocal => OpCode::GetLocalLong,
-            OpCode::SetLocal => Self::SetLocalLong,
+            OpCode::SetLocal => OpCode::SetLocalLong,
             _ => self,
         }
     }

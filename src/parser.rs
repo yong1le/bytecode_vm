@@ -271,7 +271,7 @@ impl<'a> Parser<'a> {
 
     fn if_stmt(&mut self) -> Result<Stmt, InterpretError> {
         // Match the pattern (<condition>)
-        self.consume(TokenType::LeftParen)?;
+        let token = self.consume(TokenType::LeftParen)?;
         let condition = self.expression()?;
         self.consume(TokenType::RightParen)?;
 
@@ -280,28 +280,29 @@ impl<'a> Parser<'a> {
         if self.consume(TokenType::Else).is_ok() {
             let else_block = self.statement()?;
             Ok(Stmt::If(
+                token,
                 condition,
                 Box::new(if_block),
                 Some(Box::new(else_block)),
             ))
         } else {
-            Ok(Stmt::If(condition, Box::new(if_block), None))
+            Ok(Stmt::If(token, condition, Box::new(if_block), None))
         }
     }
 
     fn while_stmt(&mut self) -> Result<Stmt, InterpretError> {
-        self.consume(TokenType::LeftParen)?;
+        let token = self.consume(TokenType::LeftParen)?;
         let condition = self.expression()?;
         self.consume(TokenType::RightParen)?;
 
         let while_block = self.statement()?;
 
-        Ok(Stmt::While(condition, Box::new(while_block)))
+        Ok(Stmt::While(token, condition, Box::new(while_block)))
     }
 
     fn for_stmt(&mut self) -> Result<Stmt, InterpretError> {
-        let token = self.consume(TokenType::LeftParen)?;
-        let line = token.line;
+        let left_paren = self.consume(TokenType::LeftParen)?;
+        let line = left_paren.line;
 
         let initializer = match self.peek()?.token {
             TokenType::Semicolon => {
@@ -325,20 +326,21 @@ impl<'a> Parser<'a> {
             TokenType::RightParen => None,
             _ => Some(self.expression()?),
         };
-        self.consume(TokenType::RightParen)?;
+        let right_paren = self.consume(TokenType::RightParen)?;
 
         let mut body = self.statement()?;
 
         if let Some(inc) = increment {
-            body = Stmt::Block(vec![body, Stmt::Expr(token, inc)]);
+            body = Stmt::Block(vec![body, Stmt::Expr(right_paren, inc)]);
         };
 
         match condition {
             Some(cond) => {
-                body = Stmt::While(cond, Box::new(body));
+                body = Stmt::While(left_paren, cond, Box::new(body));
             }
             None => {
                 body = Stmt::While(
+                    left_paren,
                     Expr::Literal(Token {
                         token: TokenType::True,
                         lexeme: "true".to_string(),
@@ -413,9 +415,9 @@ impl<'a> Parser<'a> {
 
             match t.token {
                 TokenType::Or => {
-                    self.advance()?;
+                    let actual = self.advance()?;
                     let right = self.logic_and()?;
-                    expr = Expr::Or(Box::new(expr), Box::new(right))
+                    expr = Expr::Or(actual, Box::new(expr), Box::new(right))
                 }
                 _ => break,
             }
@@ -432,9 +434,9 @@ impl<'a> Parser<'a> {
 
             match t.token {
                 TokenType::And => {
-                    self.advance()?;
+                    let actual = self.advance()?;
                     let right = self.equality()?;
-                    expr = Expr::And(Box::new(expr), Box::new(right))
+                    expr = Expr::And(actual, Box::new(expr), Box::new(right))
                 }
                 _ => break,
             }
@@ -594,9 +596,9 @@ impl<'a> Parser<'a> {
                 Expr::Super(t, prop)
             }
             _ => {
-                return Err(InterpretError::Syntax(
-                    SyntaxError::ExpectedExpression(t.line, t.lexeme),
-                ))
+                return Err(InterpretError::Syntax(SyntaxError::ExpectedExpression(
+                    t.line, t.lexeme,
+                )))
             }
         };
 

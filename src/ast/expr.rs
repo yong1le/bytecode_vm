@@ -9,8 +9,8 @@ pub enum Expr {
     Grouping(Box<Expr>),
     Variable(Token),
     Assign(Token, Box<Expr>),
-    And(Box<Expr>, Box<Expr>),
-    Or(Box<Expr>, Box<Expr>),
+    And(Token, Box<Expr>, Box<Expr>),
+    Or(Token, Box<Expr>, Box<Expr>),
     Call(Box<Expr>, Vec<Expr>, Token),
     Get(Box<Expr>, Token),
     Set(Box<Expr>, Token, Box<Expr>),
@@ -26,8 +26,8 @@ pub trait ExprVisitor<T> {
     fn visit_grouping(&mut self, expr: &Expr) -> T;
     fn visit_variable(&mut self, id: &Token) -> T;
     fn visit_assignment(&mut self, id: &Token, assignment: &Expr) -> T;
-    fn visit_and(&mut self, left: &Expr, right: &Expr) -> T;
-    fn visit_or(&mut self, left: &Expr, right: &Expr) -> T;
+    fn visit_and(&mut self, token: &Token, left: &Expr, right: &Expr) -> T;
+    fn visit_or(&mut self, token: &Token, left: &Expr, right: &Expr) -> T;
     fn visit_call(&mut self, callee: &Expr, arguments: &[Expr], closing: &Token) -> T;
     fn visit_get(&mut self, obj: &Expr, prop: &Token) -> T;
     fn visit_set(&mut self, obj: &Expr, prop: &Token, value: &Expr) -> T;
@@ -44,8 +44,8 @@ impl Expr {
             Expr::Grouping(expr) => visitor.visit_grouping(expr),
             Expr::Variable(id) => visitor.visit_variable(id),
             Expr::Assign(id, assignment) => visitor.visit_assignment(id, assignment),
-            Expr::And(left, right) => visitor.visit_and(left, right),
-            Expr::Or(left, right) => visitor.visit_or(left, right),
+            Expr::And(token, left, right) => visitor.visit_and(token, left, right),
+            Expr::Or(token, left, right) => visitor.visit_or(token, left, right),
             Expr::Call(callee, arguments, closing) => {
                 visitor.visit_call(callee, arguments, closing)
             }

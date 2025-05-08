@@ -42,6 +42,8 @@ pub enum CompileError {
     SelfInitialization(u32),
     #[error("[line {0}]: Error: '{1}' is already declared in this scope.")]
     AlreadyDeclared(u32, String),
+    #[error("[line {0}]: Error: Too much code to jump over ({1} bytes).")]
+    LargeJump(u32, usize),
 }
 
 #[derive(Debug, Error, Clone)]

@@ -101,16 +101,16 @@ impl VM {
             }
 
             match OpCode::try_from(op) {
-                Ok(OpCode::LoadConstant) => self.run_constant(false)?,
-                Ok(OpCode::LoadConstantLong) => self.run_constant(true)?,
+                Ok(OpCode::LoadConstant) => self.run_constant(1)?,
+                Ok(OpCode::LoadConstantLong) => self.run_constant(3)?,
                 Ok(OpCode::Negate) => self.run_negate()?,
                 Ok(OpCode::Not) => self.run_not()?,
                 Ok(OpCode::Add) => self.run_add()?,
                 Ok(OpCode::Subtract) => self.run_numeric_binary(OpCode::Subtract)?,
                 Ok(OpCode::Multiply) => self.run_numeric_binary(OpCode::Multiply)?,
                 Ok(OpCode::Divide) => self.run_numeric_binary(OpCode::Divide)?,
-                Ok(OpCode::Equal) => self.run_equals()?,
-                Ok(OpCode::NotEqual) => self.run_numeric_binary(OpCode::NotEqual)?,
+                Ok(OpCode::Equal) => self.run_equals(true)?,
+                Ok(OpCode::NotEqual) => self.run_equals(false)?,
                 Ok(OpCode::LessEqual) => self.run_numeric_binary(OpCode::LessEqual)?,
                 Ok(OpCode::LessThan) => self.run_numeric_binary(OpCode::LessThan)?,
                 Ok(OpCode::GreaterThan) => self.run_numeric_binary(OpCode::GreaterThan)?,
@@ -124,17 +124,37 @@ impl VM {
                     self.pop();
                     self.ip += 1;
                 }
-                Ok(OpCode::DefineGlobal) => self.run_define_global(false)?,
-                Ok(OpCode::DefineGlobalLong) => self.run_define_global(true)?,
-                Ok(OpCode::GetGlobal) => self.run_get_global(false)?,
-                Ok(OpCode::GetGlobalLong) => self.run_get_global(true)?,
-                Ok(OpCode::SetGlobal) => self.run_set_global(false)?,
-                Ok(OpCode::SetGlobalLong) => self.run_set_global(true)?,
-                Ok(OpCode::GetLocal) => self.run_get_local(false)?,
-                Ok(OpCode::GetLocalLong) => self.run_get_local(true)?,
-                Ok(OpCode::SetLocal) => self.run_set_local(false)?,
-                Ok(OpCode::SetLocalLong) => self.run_set_local(true)?,
+                Ok(OpCode::DefineGlobal) => self.run_define_global(1)?,
+                Ok(OpCode::DefineGlobalLong) => self.run_define_global(3)?,
+                Ok(OpCode::GetGlobal) => self.run_get_global(1)?,
+                Ok(OpCode::GetGlobalLong) => self.run_get_global(3)?,
+                Ok(OpCode::SetGlobal) => self.run_set_global(1)?,
+                Ok(OpCode::SetGlobalLong) => self.run_set_global(3)?,
+                Ok(OpCode::GetLocal) => self.run_get_local(1)?,
+                Ok(OpCode::GetLocalLong) => self.run_get_local(3)?,
+                Ok(OpCode::SetLocal) => self.run_set_local(1)?,
+                Ok(OpCode::SetLocalLong) => self.run_set_local(3)?,
+                Ok(OpCode::JumpIfFalse) => {
+                    self.ip += 1;
+                    let jump_distance = self.read_operand(2);
+                    let condition = *self.stack.last().unwrap_or(&Value::nil());
+
+                    if !condition.is_truthy() {
+                        self.ip += jump_distance
+                    }
+                }
+                Ok(OpCode::Jump) => {
+                    self.ip += 1;
+                    let jump_distance = self.read_operand(2);
+                    self.ip += jump_distance;
+                }
+                Ok(OpCode::Loop) => {
+                    self.ip += 1;
+                    let jump_distance = self.read_operand(2);
+                    self.ip -= jump_distance;
+                }
                 Ok(OpCode::Return) => self.run_return()?,
+                Ok(OpCode::Nop) => self.ip += 1,
                 Err(_) => {
                     self.ip += 1;
                     return Err(InterpretError::Compile(CompileError::InvalidOpCode(
@@ -151,22 +171,30 @@ impl VM {
     /// If `long` is set to true, retrieves the next 3 bytes to form the operand, otherwise
     /// only consumes the current byte. Advances the interal `ip` counter pass all the
     /// bytes read.
-    fn read_operand(&mut self, long: bool) -> usize {
-        if long {
+    fn read_operand(&mut self, operands: u8) -> usize {
+        if operands == 3 {
             let low_byte = self.chunk.code[self.ip] as usize;
             let mid_byte = self.chunk.code[self.ip + 1] as usize;
             let high_byte = self.chunk.code[self.ip + 2] as usize;
             self.ip += 3;
             (high_byte << 16) | (mid_byte << 8) | low_byte
-        } else {
+        } else if operands == 2 {
+            let low_byte = self.chunk.code[self.ip] as usize;
+            let high_byte = self.chunk.code[self.ip + 1] as usize;
+            self.ip += 2;
+
+            (high_byte << 8) | low_byte
+        } else if operands == 1 {
             self.ip += 1;
             self.chunk.code[self.ip - 1] as usize
+        } else {
+            panic!("<read_operand> only acepts 1, 2, or 3")
         }
     }
 
-    fn run_constant(&mut self, long: bool) -> Return {
+    fn run_constant(&mut self, operands: u8) -> Return {
         self.ip += 1;
-        let index = self.read_operand(long);
+        let index = self.read_operand(operands);
         self.push(self.chunk.constants[index]);
         Ok(())
     }
@@ -235,22 +263,30 @@ impl VM {
         Ok(())
     }
 
-    fn run_equals(&mut self) -> Return {
+    fn run_equals(&mut self, equality: bool) -> Return {
         let right = self.pop();
         let left = self.pop();
 
         match (left, right) {
             (n1, n2) if n1.is_number() && n2.is_number() => {
-                self.push(Value::boolean(n1.as_number() == n2.as_number()))
+                self.push(Value::boolean(if equality {
+                    n1.as_number() == n2.as_number()
+                } else {
+                    n1.as_number() != n2.as_number()
+                }))
             }
             (b1, b2) if b1.is_boolean() && b2.is_boolean() => {
-                self.push(Value::boolean(b1.as_boolean() == b2.as_boolean()))
+                self.push(Value::boolean(if equality {
+                    b1.as_boolean() == b2.as_boolean()
+                } else {
+                    b1.as_boolean() != b2.as_boolean()
+                }))
             }
-            (n1, n2) if n1.is_nil() && n2.is_nil() => self.push(Value::boolean(true)),
+            (n1, n2) if n1.is_nil() && n2.is_nil() => self.push(Value::boolean(equality)),
             (o1, o2) if o1.is_object() && o2.is_object() => {
                 match (self.get_obj(&o1), self.get_obj(&o2)) {
                     (Some(Object::String(s1)), Some(Object::String(s2))) => {
-                        self.push(Value::boolean(s1 == s2))
+                        self.push(Value::boolean(if equality { s1 == s2 } else { s1 != s2 }))
                     }
                     _ => {
                         return Err(InterpretError::Panic(PanicError::DeallocatedObject(
@@ -259,7 +295,7 @@ impl VM {
                     }
                 }
             }
-            _ => self.push(Value::boolean(false)),
+            _ => self.push(Value::boolean(!equality)),
         }
 
         self.ip += 1;
@@ -275,7 +311,6 @@ impl VM {
                 OpCode::Subtract => self.push(Value::number(n1.as_number() - n2.as_number())),
                 OpCode::Multiply => self.push(Value::number(n1.as_number() * n2.as_number())),
                 OpCode::Divide => self.push(Value::number(n1.as_number() / n2.as_number())),
-                OpCode::NotEqual => self.push(Value::boolean(n1.as_number() != n2.as_number())),
                 OpCode::LessThan => self.push(Value::boolean(n1.as_number() < n2.as_number())),
                 OpCode::LessEqual => self.push(Value::boolean(n1.as_number() <= n2.as_number())),
                 OpCode::GreaterThan => self.push(Value::boolean(n1.as_number() > n2.as_number())),
@@ -314,12 +349,12 @@ impl VM {
         }
     }
 
-    fn run_define_global(&mut self, long: bool) -> Return {
+    fn run_define_global(&mut self, operands: u8) -> Return {
         let value = self.pop();
 
         let ip = self.ip;
         self.ip += 1;
-        let index = self.read_operand(long);
+        let index = self.read_operand(operands);
 
         let name_value = self.chunk.constants[index];
         let name = self.get_variable_name(&name_value, ip)?;
@@ -329,10 +364,10 @@ impl VM {
         Ok(())
     }
 
-    fn run_get_global(&mut self, long: bool) -> Return {
+    fn run_get_global(&mut self, operands: u8) -> Return {
         let ip = self.ip;
         self.ip += 1;
-        let index = self.read_operand(long);
+        let index = self.read_operand(operands);
 
         let name_value = self.chunk.constants[index];
         let name = self.get_variable_name(&name_value, ip)?;
@@ -353,12 +388,12 @@ impl VM {
         Ok(())
     }
 
-    fn run_set_global(&mut self, long: bool) -> Return {
+    fn run_set_global(&mut self, operands: u8) -> Return {
         let value = *self.stack.last().unwrap_or(&Value::nil());
 
         let ip = self.ip;
         self.ip += 1;
-        let index = self.read_operand(long);
+        let index = self.read_operand(operands);
 
         let name_value = self.chunk.constants[index];
         let name = self.get_variable_name(&name_value, ip)?;
@@ -378,16 +413,16 @@ impl VM {
         Ok(())
     }
 
-    fn run_get_local(&mut self, long: bool) -> Return {
+    fn run_get_local(&mut self, operands: u8) -> Return {
         self.ip += 1;
-        let index = self.read_operand(long);
+        let index = self.read_operand(operands);
         self.push(self.stack[index]);
         Ok(())
     }
 
-    fn run_set_local(&mut self, long: bool) -> Return {
+    fn run_set_local(&mut self, operands: u8) -> Return {
         self.ip += 1;
-        let index = self.read_operand(long);
+        let index = self.read_operand(operands);
         self.stack[index] = *self.stack.last().unwrap_or(&Value::nil());
 
         Ok(())

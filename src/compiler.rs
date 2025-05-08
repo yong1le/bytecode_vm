@@ -111,6 +111,52 @@ impl<'a> Compiler<'a> {
         }
     }
 
+    /// Emits a jump instruction `op` and returns the index that the instruction was
+    /// inserted at
+    fn emit_jump_instruction(&mut self, op: OpCode, line: u32) -> usize {
+        self.emit_byte(op as u8, line);
+        // 2 byte operand for jumps
+        self.emit_byte(OpCode::Nop as u8, line);
+        self.emit_byte(OpCode::Nop as u8, line);
+
+        self.chunk.code.len() - 2
+    }
+
+    /// Patches the jump distance
+    fn patch_jump_instruction(&mut self, offset: usize, line: u32) -> Return {
+        // -2 because our jump instruction has 2 operands
+        let jump_distance = self.chunk.code.len() - offset - 2;
+
+        if jump_distance > u16::MAX as usize {
+            return Err(InterpretError::Compile(CompileError::LargeJump(
+                line,
+                jump_distance,
+            )));
+        };
+
+        self.chunk.code[offset] = (jump_distance & 255) as u8;
+        self.chunk.code[offset + 1] = ((jump_distance >> 8) & 255) as u8;
+
+        Ok(())
+    }
+
+    fn emit_loop_instruction(&mut self, loop_start: usize, line: u32) -> Return {
+        self.emit_byte(OpCode::Loop as u8, line);
+
+        let jump_distance = self.chunk.code.len() - loop_start + 2;
+        if jump_distance > u16::MAX as usize {
+            return Err(InterpretError::Compile(CompileError::LargeJump(
+                line,
+                jump_distance,
+            )));
+        };
+
+        self.emit_byte((jump_distance & 255) as u8, line);
+        self.emit_byte(((jump_distance >> 8) & 255) as u8, line);
+
+        Ok(())
+    }
+
     /// Declares a local variable `name` with the current scope depth, storing
     /// it into the internal locals array
     fn declare_local(&mut self, name: String, line: u32) -> Return {
@@ -201,17 +247,44 @@ impl StmtVisitor<Return> for Compiler<'_> {
 
     fn visit_if(
         &mut self,
+        token: &Token,
         condition: &Expr,
         if_block: &Stmt,
         else_block: &Option<Box<Stmt>>,
     ) -> Return {
         self.compile_expr(condition)?;
 
+        let if_offset = self.emit_jump_instruction(OpCode::JumpIfFalse, token.line);
+        self.emit_byte(OpCode::Pop as u8, token.line); // removes condition value off stack
+        self.compile_stmt(if_block)?;
+
+        // send JUMP here to include it inside the if_block
+        let else_offset = self.emit_jump_instruction(OpCode::Jump, token.line);
+        self.emit_byte(OpCode::Pop as u8, token.line); // removes condition value off stack
+
+        self.patch_jump_instruction(if_offset, token.line)?;
+
+        if let Some(else_block) = else_block {
+            self.compile_stmt(else_block)?;
+        }
+        self.patch_jump_instruction(else_offset, token.line)?;
         Ok(())
     }
 
-    fn visit_while(&mut self, condition: &Expr, while_block: &Stmt) -> Return {
-        todo!()
+    fn visit_while(&mut self, token: &Token, condition: &Expr, while_block: &Stmt) -> Return {
+        let loop_start = self.chunk.code.len();
+
+        self.compile_expr(condition)?;
+        let offset = self.emit_jump_instruction(OpCode::JumpIfFalse, token.line);
+        self.emit_byte(OpCode::Pop as u8, token.line); // removes condition value off stack
+
+        self.compile_stmt(while_block)?;
+        self.emit_loop_instruction(loop_start, token.line)?;
+        self.patch_jump_instruction(offset, token.line)?;
+        // removes condition value off stack, even if we skipped the loop body
+        self.emit_byte(OpCode::Pop as u8, token.line);
+
+        Ok(())
     }
 
     fn visit_declare_func(
@@ -355,12 +428,31 @@ impl ExprVisitor<Return> for Compiler<'_> {
         Ok(())
     }
 
-    fn visit_and(&mut self, left: &Expr, right: &Expr) -> Return {
-        todo!()
+    // Returns first false, or last value
+    fn visit_and(&mut self, token: &Token, left: &Expr, right: &Expr) -> Return {
+        self.compile_expr(left)?;
+        let end_offset = self.emit_jump_instruction(OpCode::JumpIfFalse, token.line);
+        self.emit_byte(OpCode::Pop as u8, token.line);
+        self.compile_expr(right)?;
+        self.patch_jump_instruction(end_offset, token.line)?;
+
+        Ok(())
     }
 
-    fn visit_or(&mut self, left: &Expr, right: &Expr) -> Return {
-        todo!()
+    // Returns first true, or last value
+    fn visit_or(&mut self, token: &Token, left: &Expr, right: &Expr) -> Return {
+        let else_offset = self.emit_jump_instruction(OpCode::JumpIfFalse, token.line);
+        let end_offset = self.emit_jump_instruction(OpCode::Jump, token.line);
+
+        // left == false, jump past the end jump, and go to the right expr
+        // left == true, visit the end jump instruction, which jumps to the end, skipping right
+        self.patch_jump_instruction(else_offset, token.line)?;
+        self.emit_byte(OpCode::Pop as u8, token.line);
+
+        self.compile_expr(right)?;
+        self.patch_jump_instruction(end_offset, token.line)?;
+
+        Ok(())
     }
 
     fn visit_call(&mut self, callee: &Expr, arguments: &[Expr], closing: &Token) -> Return {
