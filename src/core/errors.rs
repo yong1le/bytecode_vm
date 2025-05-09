@@ -12,6 +12,8 @@ pub enum InterpretError {
     Runtime(RuntimeError),
     #[error("PANIC: {0}")]
     Panic(PanicError),
+    #[error("Not implemented.")]
+    UnImplemented,
 }
 
 #[derive(Debug, Error, Clone)]
@@ -30,8 +32,12 @@ pub enum SyntaxError {
     ExpectedExpression(u32, String),
     #[error("Unexpected end of file.")]
     UnexpectedEOF,
-    #[error("[line {0}]: Error at '=': Invalid assignment.")]
+    #[error("[line {0}]: Error at '=': Invalid assignment target.")]
     InvalidAssignment(u32),
+    #[error("[line {0}]: Cannot have more than 255 arguments.")]
+    TooManyArgs(u32),
+    #[error("[line {0}]: Cannot have more than 255 parameters.")]
+    TooManyParams(u32),
 }
 
 #[derive(Debug, Error, Clone)]
@@ -44,6 +50,19 @@ pub enum CompileError {
     AlreadyDeclared(u32, String),
     #[error("[line {0}]: Error: Too much code to jump over ({1} bytes).")]
     LargeJump(u32, usize),
+
+    #[error("[line {0}]: Error: Cannot return from top level code.")]
+    TopReturn(u32),
+    #[error("[line {0}]: Error: Cannot use 'this' outside of class methods.")]
+    TopThis(u32),
+    #[error("[line {0}]: Error: Cannot use 'super' outside of a class.")]
+    TopSuper(u32),
+    #[error("[line {0}]: Error at 'super': Class does not inherit from a parent.")]
+    TopClassSuper(u32),
+    #[error("[line {0}]: Error at 'return': Cannot return value from class constructor method.")]
+    ReturnValueInInit(u32),
+    #[error("[line {0}]: Error at '{1}': A class cannot inherit from itself.")]
+    SelfInheritance(u32, String),
 }
 
 #[derive(Debug, Error, Clone)]

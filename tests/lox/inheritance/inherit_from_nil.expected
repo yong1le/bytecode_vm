@@ -1,0 +1,1 @@
+[line 2] Error: 'Foo' attempting to inherit from non-class value 'nil'.

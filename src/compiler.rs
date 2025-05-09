@@ -249,7 +249,18 @@ impl StmtVisitor<Return> for Compiler<'_> {
         self.scope_depth -= 1;
 
         // Remove all local variables from that block
-        self.locals.retain(|l| l.depth <= self.scope_depth);
+        let mut to_remove = 0;
+        self.locals.retain(|l| {
+            if l.depth > self.scope_depth {
+                to_remove += 1;
+                false
+            } else {
+                true
+            }
+        });
+        for _ in 0..to_remove {
+            self.emit_byte(OpCode::Pop as u8, 0);
+        }
         Ok(())
     }
 
@@ -301,11 +312,11 @@ impl StmtVisitor<Return> for Compiler<'_> {
         params: &std::rc::Rc<Vec<Token>>,
         body: &std::rc::Rc<Vec<Stmt>>,
     ) -> Return {
-        todo!()
+        Err(InterpretError::UnImplemented)
     }
 
     fn visit_return(&mut self, token: &Token, expr: &Expr) -> Return {
-        todo!()
+        Err(InterpretError::UnImplemented)
     }
 
     fn visit_declare_class(
@@ -314,7 +325,7 @@ impl StmtVisitor<Return> for Compiler<'_> {
         parent: &Option<Token>,
         methods: &[(Token, std::rc::Rc<Vec<Token>>, std::rc::Rc<Vec<Stmt>>)],
     ) -> Return {
-        todo!()
+        Err(InterpretError::UnImplemented)
     }
 }
 
@@ -449,6 +460,7 @@ impl ExprVisitor<Return> for Compiler<'_> {
 
     // Returns first true, or last value
     fn visit_or(&mut self, token: &Token, left: &Expr, right: &Expr) -> Return {
+        self.compile_expr(left)?;
         let else_offset = self.emit_jump_instruction(OpCode::JumpIfFalse, token.line);
         let end_offset = self.emit_jump_instruction(OpCode::Jump, token.line);
 
@@ -464,22 +476,22 @@ impl ExprVisitor<Return> for Compiler<'_> {
     }
 
     fn visit_call(&mut self, callee: &Expr, arguments: &[Expr], closing: &Token) -> Return {
-        todo!()
+        Err(InterpretError::UnImplemented)
     }
 
     fn visit_get(&mut self, obj: &Expr, prop: &Token) -> Return {
-        todo!()
+        Err(InterpretError::UnImplemented)
     }
 
     fn visit_set(&mut self, obj: &Expr, prop: &Token, value: &Expr) -> Return {
-        todo!()
+        Err(InterpretError::UnImplemented)
     }
 
     fn visit_this(&mut self, token: &Token) -> Return {
-        todo!()
+        Err(InterpretError::UnImplemented)
     }
 
     fn visit_super(&mut self, super_token: &Token, prop: &Token) -> Return {
-        todo!()
+        Err(InterpretError::UnImplemented)
     }
 }

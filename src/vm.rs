@@ -1,34 +1,37 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, io::Write};
 
 use crate::{
+    chunk::Chunk,
+    core::value::Value,
     core::{
         errors::{CompileError, InterpretError, PanicError, RuntimeError},
         value::Object,
     },
     heap::{Heap, HeapIndex},
     opcode::OpCode,
-    Chunk, Value,
 };
 
-pub struct VM {
+pub struct VM<'a> {
     ip: usize,
     stack: Vec<Value>,
     heap: Heap,
     globals: HashMap<String, Value>,
     chunk: Chunk,
+    writer: Box<dyn Write + 'a>,
 }
 
 type Return = Result<(), InterpretError>;
 
-impl VM {
+impl<'a> VM<'a> {
     const STACK_MAX: usize = 256;
-    pub fn new() -> Self {
+    pub fn new(writer: Box<dyn Write + 'a>) -> Self {
         VM {
             ip: 0,
             stack: Vec::with_capacity(Self::STACK_MAX),
             heap: Heap::new(),
             globals: HashMap::new(),
             chunk: Chunk::new(),
+            writer,
         }
     }
 
@@ -85,7 +88,7 @@ impl VM {
 }
 
 // bytecode execution functions
-impl VM {
+impl VM<'_> {
     pub fn run(&mut self, chunk: Chunk) -> Return {
         self.ip = 0;
         self.chunk = chunk;
@@ -117,7 +120,7 @@ impl VM {
                 Ok(OpCode::GreaterEqual) => self.run_numeric_binary(OpCode::GreaterEqual)?,
                 Ok(OpCode::Print) => {
                     let constant = self.pop();
-                    println!("{}", self.format_value(&constant));
+                    writeln!(self.writer, "{}", self.format_value(&constant)).unwrap();
                     self.ip += 1;
                 }
                 Ok(OpCode::Pop) => {
@@ -208,7 +211,7 @@ impl VM {
             _ => {
                 return Err(InterpretError::Runtime(RuntimeError::OperandMismatch(
                     self.chunk.get_line(self.ip),
-                    "number".to_string(),
+                    "numbers".to_string(),
                 )))
             }
         }
@@ -325,7 +328,7 @@ impl VM {
             _ => {
                 return Err(InterpretError::Runtime(RuntimeError::OperandMismatch(
                     self.chunk.get_line(self.ip),
-                    "number".to_string(),
+                    "numbers".to_string(),
                 )))
             }
         }

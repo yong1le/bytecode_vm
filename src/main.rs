@@ -1,14 +1,3 @@
-mod ast;
-mod chunk;
-mod compiler;
-mod core;
-mod heap;
-mod opcode;
-mod parser;
-mod scanner;
-mod vm;
-
-use core::value::Value;
 use std::{
     env::args,
     fs::File,
@@ -17,31 +6,11 @@ use std::{
     time::Instant,
 };
 
-use chunk::Chunk;
-use compiler::Compiler;
-use opcode::OpCode;
-use parser::Parser;
-use scanner::Scanner;
-use vm::VM;
-
-fn interpret(source: &str, vm: &mut VM) {
-    let scanner = Scanner::new(source);
-    let parser = Parser::new(scanner);
-
-    let chunk = Compiler::new(parser, vm.heap()).compile();
-
-    match chunk {
-        Ok(chunk) => {
-            if let Err(e) = vm.run(chunk) {
-                eprintln!("{e}")
-            }
-        }
-        Err(errs) => errs.iter().for_each(|e| eprintln!("{e}")),
-    }
-}
+use lox_bytecode_vm::interpret;
+use lox_bytecode_vm::vm::VM;
 
 fn repl() {
-    let mut vm = VM::new();
+    let mut vm = VM::new(Box::new(std::io::stdout()));
     loop {
         print!("> ");
         io::stdout().flush().unwrap();
@@ -51,7 +20,7 @@ fn repl() {
             .read_line(&mut line)
             .expect("Failed to read line");
 
-        interpret(&line, &mut vm);
+        interpret(&line, &mut vm, io::stderr());
     }
 }
 
@@ -61,8 +30,8 @@ fn run_file(path: &str) {
     file.read_to_string(&mut contents)
         .expect("Failed to read file");
 
-    let mut vm = VM::new();
-    interpret(&contents, &mut vm);
+    let mut vm = VM::new(Box::new(std::io::stdout()));
+    interpret(&contents, &mut vm, io::stderr());
 }
 
 fn main() {

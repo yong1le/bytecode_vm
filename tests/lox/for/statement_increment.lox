@@ -1,0 +1,2 @@
+// expect syntax error: Expect expression.
+for (var a = 1; a < 2; {}) {}

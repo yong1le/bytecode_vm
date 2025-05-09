@@ -616,7 +616,7 @@ impl Iterator for Parser<'_> {
                     return None;
                 }
             }
-            Some(Err(e)) => return Some(Err(e.to_owned())),
+            Some(Err(_)) => (),
             None => return None,
         }
 

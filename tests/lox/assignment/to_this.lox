@@ -1,0 +1,7 @@
+class Foo {
+  Foo() {
+    this = "value"; // expect syntax error: Invalid assignment target.
+  }
+}
+
+Foo();

@@ -1,0 +1,2 @@
+Derived.foo()
+[line 10]: Error: Expected 2 arguments, but received 4.

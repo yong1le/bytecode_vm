@@ -1,0 +1,5 @@
+class Foo {
+  init() {
+    return "result"; // expect compile error: Can't return a value from an initializer.
+  }
+}

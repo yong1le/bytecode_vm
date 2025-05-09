@@ -57,7 +57,7 @@ impl LoxCallable for LoxClass {
 
     fn call(&self, mut args: Vec<Value>) {
         todo!()
-    }
+InterpretError::UnImplemented    }
 
     fn arity(&self) -> usize {
         self.arity
@@ -85,9 +85,9 @@ impl LoxInstance {
     /// ref_self is the same as self, but captured inside a Rc<RefCell<>>
     pub fn get(&self, token: &Token, self_ref: Rc<RefCell<LoxInstance>>) {
         todo!()
-    }
+InterpretError::UnImplemented    }
 
     pub fn set(&mut self, token: &Token, value: Value) {
         todo!()
-    }
+InterpretError::UnImplemented    }
 }

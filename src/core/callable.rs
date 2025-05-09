@@ -25,7 +25,7 @@ impl LoxCallable for Clock {
             .duration_since(UNIX_EPOCH)
             .expect("Time went backwards.");
 
-        todo!()
+        InterpretError::UnImplemented
     }
 
     fn arity(&self) -> usize {
@@ -64,7 +64,7 @@ impl LoxFunction {
 
 impl LoxCallable for LoxFunction {
     fn call(&self, arguments: Vec<Value>) {
-        todo!()
+        InterpretError::UnImplemented
     }
 
     fn arity(&self) -> usize {

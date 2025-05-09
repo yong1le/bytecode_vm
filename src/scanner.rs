@@ -44,6 +44,7 @@ impl<'a> Scanner<'a> {
                     self.advance();
                 }
                 None => {
+                    println!("HERE");
                     return Err(InterpretError::Scan(ScanError::UnterminatedString(
                         self.line,
                     )));

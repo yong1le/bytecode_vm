@@ -1,4 +1,4 @@
-use crate::{core::value::Value, OpCode};
+use crate::{core::value::Value, opcode::OpCode};
 
 #[derive(Clone)]
 pub struct Chunk {
