@@ -58,16 +58,24 @@ impl<'a> Compiler<'a> {
 
     /// Compiles the statements in the compiler into a chunk of bytecode to be used
     /// by the virtual machine. This function consumes the compiler instance.
-    pub fn compile(mut self) -> Result<Chunk, InterpretError> {
+    pub fn compile(mut self) -> Result<Chunk, Vec<InterpretError>> {
+        let mut errors = vec![];
+
         while let Some(stmt) = self.statements.next() {
             match stmt {
                 Ok(stmt) => {
-                    self.compile_stmt(&stmt)?;
+                    if let Err(e) = self.compile_stmt(&stmt) {
+                        errors.push(e);
+                    }
                 }
                 Err(e) => {
-                    return Err(e);
+                    errors.push(e);
                 }
             }
+        }
+
+        if !errors.is_empty() {
+            return Err(errors);
         }
 
         self.chunk.write_byte(OpCode::Return as u8, 2);

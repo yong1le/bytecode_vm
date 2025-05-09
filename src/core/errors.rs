@@ -16,9 +16,9 @@ pub enum InterpretError {
 
 #[derive(Debug, Error, Clone)]
 pub enum ScanError {
-    #[error("[line {0}: Error: Unterminated string.")]
+    #[error("[line {0}]: Error: Unterminated string.")]
     UnterminatedString(u32),
-    #[error("[line {0}: Error at '{1}': Unexpected character.")]
+    #[error("[line {0}]: Error at '{1}': Unexpected character.")]
     UnexpectedCharacter(u32, char),
 }
 

@@ -36,7 +36,7 @@ fn interpret(source: &str, vm: &mut VM) {
                 eprintln!("{e}")
             }
         }
-        Err(e) => eprintln!("{e}"),
+        Err(errs) => errs.iter().for_each(|e| eprintln!("{e}")),
     }
 }
 
