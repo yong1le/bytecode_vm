@@ -1,10 +1,3 @@
-use std::io::Write;
-
-use compiler::Compiler;
-use parser::Parser;
-use scanner::Scanner;
-use vm::VM;
-
 mod ast;
 mod chunk;
 mod compiler;
@@ -14,6 +7,13 @@ mod opcode;
 mod parser;
 mod scanner;
 pub mod vm;
+
+use std::io::Write;
+
+use compiler::Compiler;
+use parser::Parser;
+use scanner::Scanner;
+use vm::VM;
 
 pub fn interpret(source: &str, vm: &mut VM, mut err_writer: impl Write) {
     let scanner = Scanner::new(source);

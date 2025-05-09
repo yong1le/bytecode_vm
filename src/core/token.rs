@@ -1,7 +1,7 @@
 use std::fmt::{self};
 
 /// Enum to represent the different types of tokens in the language.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Copy)]
 #[repr(u8)] // NOTE: This should be the default
 pub enum TokenType {
     LeftParen,

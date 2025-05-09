@@ -5,7 +5,7 @@ use crate::{
     },
     chunk::Chunk,
     core::{
-        errors::{CompileError, InterpretError},
+        errors::{CompileError, InterpretError, PanicError},
         token::{Token, TokenType},
         value::{Object, Value},
     },
@@ -78,7 +78,7 @@ impl<'a> Compiler<'a> {
             return Err(errors);
         }
 
-        self.chunk.write_byte(OpCode::Return as u8, 2);
+        self.emit_byte(OpCode::Return as u8, 2);
         Ok(self.chunk)
     }
 
@@ -361,10 +361,13 @@ impl ExprVisitor<Return> for Compiler<'_> {
                 let object_idx = self.heap.push(object);
                 self.emit_constant_instruction(OpCode::LoadConstant, object_idx, token.line);
             }
-            _ => panic!(
-                "PANIC: Invalid Token {:?} passed to <compiler.visit_binary>",
-                token.token
-            ),
+            _ => {
+                return Err(InterpretError::Panic(PanicError::InvalidToken(
+                    token.line,
+                    token.token,
+                    "<compiler.visit_literal>".to_string(),
+                )))
+            }
         }
         Ok(())
     }
@@ -379,10 +382,13 @@ impl ExprVisitor<Return> for Compiler<'_> {
                 self.compile_expr(expr)?;
                 self.emit_byte(OpCode::Not as u8, operator.line);
             }
-            _ => panic!(
-                "PANIC: Invalid Token {:?} passed to <compiler.visit_unary>",
-                operator.token
-            ),
+            _ => {
+                return Err(InterpretError::Panic(PanicError::InvalidToken(
+                    operator.line,
+                    operator.token,
+                    "<compiler.visit_unary>".to_string(),
+                )))
+            }
         }
 
         Ok(())
@@ -400,10 +406,13 @@ impl ExprVisitor<Return> for Compiler<'_> {
             TokenType::LessEqual => OpCode::LessEqual,
             TokenType::GreaterThan => OpCode::GreaterThan,
             TokenType::GreaterEqual => OpCode::GreaterEqual,
-            _ => panic!(
-                "PANIC: Invalid Token {:?} passed to <compiler.visit_binary>",
-                operator.token
-            ),
+            _ => {
+                return Err(InterpretError::Panic(PanicError::InvalidToken(
+                    operator.line,
+                    operator.token,
+                    "<compiler.visit_binary>".to_string(),
+                )))
+            }
         };
 
         self.compile_expr(left)?;

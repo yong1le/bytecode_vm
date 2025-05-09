@@ -1,5 +1,7 @@
 use thiserror::Error;
 
+use super::token::TokenType;
+
 #[derive(Debug, Error, Clone)]
 pub enum InterpretError {
     #[error("{0}")]
@@ -89,4 +91,6 @@ pub enum PanicError {
     DeallocatedObject(u32),
     #[error("[line {0}]: Passed non-object operand as variable.")]
     NonObjectVariable(u32),
+    #[error("[line {0}]: Invalid token '{1:?}' passed to {2}")]
+    InvalidToken(u32, TokenType, String),
 }
