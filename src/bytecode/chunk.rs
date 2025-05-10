@@ -1,6 +1,5 @@
-use crate::{core::value::Value, opcode::OpCode};
+use crate::core::{OpCode, Value};
 
-#[derive(Clone)]
 pub struct Chunk {
     pub code: Vec<u8>,
     /// Run-length encoding of line numbers
@@ -76,48 +75,88 @@ impl Chunk {
             }
         );
 
-        offset += 1;
-        match OpCode::try_from(instruction) {
+        offset += match OpCode::try_from(instruction) {
             Ok(op) => match op {
                 OpCode::LoadConstant
                 | OpCode::DefineGlobal
                 | OpCode::GetGlobal
-                | OpCode::SetGlobal => offset = self.disassemble_constant_instruction(op, offset),
+                | OpCode::SetGlobal => self.disassemble_constant_instruction(op, offset),
                 OpCode::LoadConstantLong
                 | OpCode::DefineGlobalLong
                 | OpCode::GetGlobalLong
-                | OpCode::SetGlobalLong => offset = self.disassemble_long_instruction(op, offset),
+                | OpCode::SetGlobalLong => self.disassemble_constant_long_instruction(op, offset),
+                OpCode::GetLocal | OpCode::SetLocal | OpCode::Call => {
+                    self.disassemble_num_instruction(op, offset)
+                }
+                OpCode::GetLocalLong | OpCode::SetLocalLong => {
+                    self.disassemble_num_long_instruction(op, offset)
+                }
+                OpCode::Jump | OpCode::JumpIfFalse | OpCode::Loop => {
+                    self.disassemble_num_mid_instruction(op, offset)
+                }
                 _ => self.disassemble_simple_instruction(op),
             },
             Err(_) => {
                 println!("Invalid Opcode '{}'", instruction);
+                1
             }
         };
 
         offset
     }
 
-    fn disassemble_simple_instruction(&self, op: OpCode) {
-        println!("{:?}", op);
+    fn read_operand(&self, operands: u8, offset: usize) -> usize {
+        if operands == 3 {
+            let low_byte = self.code[offset + 1] as usize;
+            let mid_byte = self.code[offset + 2] as usize;
+            let high_byte = self.code[offset + 3] as usize;
+            (high_byte << 16) | (mid_byte << 8) | low_byte
+        } else if operands == 2 {
+            let low_byte = self.code[offset + 1] as usize;
+            let high_byte = self.code[offset + 2] as usize;
+            (high_byte << 8) | low_byte
+        } else if operands == 1 {
+            self.code[offset + 1] as usize
+        } else {
+            panic!("<read_operand> only acepts 1, 2, or 3")
+        }
     }
 
-    fn disassemble_constant_instruction(&self, op: OpCode, mut offset: usize) -> usize {
-        let constant_idx = self.code[offset] as usize;
+    fn disassemble_simple_instruction(&self, op: OpCode) -> usize {
+        println!("{:?}", op);
+        1
+    }
+
+    fn disassemble_constant_instruction(&self, op: OpCode, offset: usize) -> usize {
+        let constant_idx = self.read_operand(1, offset);
         let constant = self.constants[constant_idx];
         println!("{:<16?} {:>4} '{:?}'", op, constant_idx, constant);
-        offset += 1;
-        offset
+        2
     }
 
-    fn disassemble_long_instruction(&self, op: OpCode, mut offset: usize) -> usize {
-        let low_byte = self.code[offset] as usize;
-        let mid_byte = self.code[offset + 1] as usize;
-        let high_byte = self.code[offset + 1] as usize;
-        let constant_idx = (high_byte << 16) | (mid_byte << 8) | low_byte;
+    fn disassemble_constant_long_instruction(&self, op: OpCode, offset: usize) -> usize {
+        let constant_idx = self.read_operand(3, offset);
         let constant = self.constants.get(constant_idx).unwrap();
         println!("{:<16?} {:>4} '{:?}'", op, constant_idx, constant);
-        offset += 3;
-        offset
+        4
+    }
+
+    fn disassemble_num_instruction(&self, op: OpCode, offset: usize) -> usize {
+        let constant_idx = self.read_operand(1, offset);
+        println!("{:<16?} {:>4}", op, constant_idx);
+        2
+    }
+
+    fn disassemble_num_mid_instruction(&self, op: OpCode, offset: usize) -> usize {
+        let constant_idx = self.read_operand(2, offset);
+        println!("{:<16?} {:>4}", op, constant_idx);
+        3
+    }
+
+    fn disassemble_num_long_instruction(&self, op: OpCode, offset: usize) -> usize {
+        let constant_idx = self.read_operand(3, offset);
+        println!("{:<16?} {:>4}", op, constant_idx);
+        4
     }
 }
 

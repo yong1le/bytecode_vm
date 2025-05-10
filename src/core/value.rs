@@ -1,16 +1,8 @@
-use crate::functions::Function;
-
 static OBJ_TAG: u64 = 0x8000000000000000;
 static QNAN: u64 = 0x7ffc000000000000;
 static NIL_TAG: u64 = 1;
 static FALSE_TAG: u64 = 2;
 static TRUE_TAG: u64 = 3;
-
-#[derive(Debug)]
-pub enum Object {
-    String(String),
-    Function(Function),
-}
 
 #[derive(Clone, Copy)]
 pub struct Value {

@@ -1,5 +1,8 @@
-// pub mod callable;
-// pub mod class;
 pub mod errors;
 pub mod token;
-pub mod value;
+
+mod opcode;
+mod value;
+
+pub use opcode::OpCode;
+pub use value::Value;

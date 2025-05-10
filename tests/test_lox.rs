@@ -28,7 +28,7 @@
 // benchmark
 
 use lox_bytecode_vm::interpret;
-use lox_bytecode_vm::vm::VM;
+use lox_bytecode_vm::VM;
 use std::fs;
 use std::io::{self};
 use std::path::{Path, PathBuf};

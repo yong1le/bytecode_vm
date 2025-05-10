@@ -200,8 +200,8 @@ pub enum OpCode {
     /// Pushes the value of a local variable onto the stack.
     ///
     /// ### Operand
-    /// - 1 byte: index into constant pool for variable name
-    /// - 3 bytes: index into constant pool for variable name (index > 255)
+    /// - 1 byte: index into stack for variable name
+    /// - 3 bytes: index into stack for variable name (index > 255)
     ///
     /// ### Stack effect
     /// - Before: `[]`

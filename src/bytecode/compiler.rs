@@ -1,251 +1,20 @@
-use std::{rc::Rc, vec::IntoIter};
+use std::rc::Rc;
 
 use crate::{
     ast::{
         expr::{Expr, ExprVisitor},
         stmt::{Stmt, StmtVisitor},
     },
-    chunk::Chunk,
+    core::OpCode,
     core::{
-        errors::{CompileError, InterpretError, PanicError},
+        errors::{InterpretError, PanicError},
         token::{Token, TokenType},
-        value::{Object, Value},
+        Value,
     },
-    functions::Function,
-    heap::Heap,
-    opcode::OpCode,
-    parser::Parser,
+    object::{Function, Object},
 };
 
-type Return = Result<(), InterpretError>;
-
-struct Local {
-    name: String,
-    depth: usize,
-    init: bool,
-}
-
-impl Local {
-    pub fn new(name: String, depth: usize) -> Self {
-        Self {
-            name,
-            depth,
-            init: false,
-        }
-    }
-
-    pub fn initialize(&mut self) {
-        self.init = true;
-    }
-}
-
-pub struct Compiler<'a> {
-    statements: Parser<'a>,
-    function: Function,
-    heap: &'a mut Heap,
-    /// The depth of nested scopes the compiler is currently in, 0 is the global scope
-    scope_depth: usize,
-    locals: Vec<Local>,
-}
-
-impl<'a> Compiler<'a> {
-    pub fn new(statements: Parser<'a>, heap: &'a mut Heap) -> Self {
-        Compiler {
-            statements,
-            heap,
-            function: Function::new("main".to_string(), 0),
-            scope_depth: 0,
-            locals: vec![Local::new("".to_string(), 0)],
-        }
-    }
-
-    /// Compiles the statements in the compiler into a chunk of bytecode to be used
-    /// by the virtual machine. This function consumes the compiler instance.
-    pub fn compile(mut self) -> Result<Function, Vec<InterpretError>> {
-        let mut errors = vec![];
-
-        while let Some(stmt) = self.statements.next() {
-            match stmt {
-                Ok(stmt) => {
-                    if let Err(e) = self.compile_stmt(stmt) {
-                        errors.push(e);
-                    }
-                }
-                Err(e) => {
-                    errors.push(e);
-                }
-            }
-        }
-
-        if !errors.is_empty() {
-            return Err(errors);
-        }
-
-        self.emit_byte(OpCode::Return as u8, 2);
-        Ok(self.function)
-    }
-
-    fn compile_expr(&mut self, expression: Expr) -> Return {
-        expression.accept(self)
-    }
-
-    fn compile_stmt(&mut self, statement: Stmt) -> Return {
-        statement.accept(self)
-    }
-
-    fn get_chunk(&mut self) -> &mut Chunk {
-        &mut self.function.chunk
-    }
-
-    fn get_code_length(&self) -> usize {
-        self.function.chunk.code.len()
-    }
-
-    /// Emits a single byte to the chunk
-    fn emit_byte(&mut self, byte: u8, line: u32) {
-        self.get_chunk().write_byte(byte, line);
-    }
-
-    /// Emits instruction `op` that expects one operand pointing to an index on the
-    /// constants pool. If the operand does not point to the operand pool, use
-    /// `emit_operand_instruction` instead.
-    fn emit_constant_instruction(&mut self, op: OpCode, operand: Value, line: u32) {
-        let constant_idx = self.get_chunk().add_constant(operand);
-
-        self.emit_operand_instruction(op, constant_idx, line);
-    }
-
-    /// Emits instruction `op` that expects one operand `index`. If the operand exceeds
-    /// u8 (255), this functions emit the long version of `op`, encoding the single `index`
-    /// operand as 3 operands.
-    fn emit_operand_instruction(&mut self, op: OpCode, index: usize, line: u32) {
-        if index > 255 {
-            self.emit_byte(op.to_long() as u8, line);
-            self.emit_byte((index & 255) as u8, line);
-            self.emit_byte(((index >> 8) & 255) as u8, line);
-            self.emit_byte(((index >> 16) & 255) as u8, line);
-        } else {
-            self.emit_byte(op as u8, line);
-            self.emit_byte(index as u8, line);
-        }
-    }
-
-    /// Emits a jump instruction `op` and returns the index that the instruction was
-    /// inserted at
-    fn emit_jump_instruction(&mut self, op: OpCode, line: u32) -> usize {
-        self.emit_byte(op as u8, line);
-        // 2 byte operand for jumps
-        self.emit_byte(OpCode::Nop as u8, line);
-        self.emit_byte(OpCode::Nop as u8, line);
-
-        self.get_code_length() - 2
-    }
-
-    /// Patches the jump distance
-    fn patch_jump_instruction(&mut self, offset: usize, line: u32) -> Return {
-        let code = &mut self.get_chunk().code;
-        // -2 because our jump instruction has 2 operands
-        let jump_distance = code.len() - offset - 2;
-
-        if jump_distance > u16::MAX as usize {
-            return Err(InterpretError::Compile(CompileError::LargeJump(
-                line,
-                jump_distance,
-            )));
-        };
-
-        code[offset] = (jump_distance & 255) as u8;
-        code[offset + 1] = ((jump_distance >> 8) & 255) as u8;
-
-        Ok(())
-    }
-
-    fn emit_loop_instruction(&mut self, loop_start: usize, line: u32) -> Return {
-        self.emit_byte(OpCode::Loop as u8, line);
-
-        let jump_distance = self.get_code_length() - loop_start + 2;
-        if jump_distance > u16::MAX as usize {
-            return Err(InterpretError::Compile(CompileError::LargeJump(
-                line,
-                jump_distance,
-            )));
-        };
-
-        self.emit_byte((jump_distance & 255) as u8, line);
-        self.emit_byte(((jump_distance >> 8) & 255) as u8, line);
-
-        Ok(())
-    }
-
-    fn begin_scope(&mut self) {
-        self.scope_depth += 1;
-    }
-
-    fn end_scope(&mut self) {
-        self.scope_depth -= 1;
-
-        // Remove all local variables from that block
-        let mut to_remove = 0;
-        self.locals.retain(|l| {
-            if l.depth > self.scope_depth {
-                to_remove += 1;
-                false
-            } else {
-                true
-            }
-        });
-        for _ in 0..to_remove {
-            self.emit_byte(OpCode::Pop as u8, 0);
-        }
-    }
-
-    /// Declares a local variable `name` with the current scope depth, storing
-    /// it into the internal locals array
-    fn declare_local(&mut self, name: String, line: u32) -> Return {
-        if self.scope_depth == 0 {
-            return Ok(());
-        }
-
-        if self
-            .locals
-            .iter()
-            .any(|l| l.depth == self.scope_depth && l.name == name)
-        {
-            return Err(InterpretError::Compile(CompileError::AlreadyDeclared(
-                line, name,
-            )));
-        }
-
-        self.locals.push(Local::new(name, self.scope_depth));
-
-        Ok(())
-    }
-
-    fn define_local(&mut self) {
-        if self.scope_depth == 0 {
-            return;
-        }
-
-        let last = self.locals.len() - 1;
-        self.locals[last].initialize();
-    }
-
-    fn resolve_local(&self, name: &str, line: u32) -> Result<Option<usize>, InterpretError> {
-        match self.locals.iter().rposition(|l| l.name == *name) {
-            None => Ok(None),
-            Some(index) => {
-                let local = self.locals.get(index).unwrap();
-                if !local.init {
-                    Err(InterpretError::Compile(CompileError::SelfInitialization(
-                        line,
-                    )))
-                } else {
-                    Ok(Some(index))
-                }
-            }
-        }
-    }
-}
+use super::{locals::Local, Compiler, Return};
 
 impl StmtVisitor<Return> for Compiler<'_> {
     fn visit_print(&mut self, token: Token, expr: Expr) -> Return {
@@ -356,7 +125,7 @@ impl StmtVisitor<Return> for Compiler<'_> {
         self.emit_byte(OpCode::Return as u8, id.line);
 
         let new_function = std::mem::replace(&mut self.function, enclosing_function);
-        let index = self.heap.push(Object::Function(new_function));
+        let index = self.heap.push(Object::Function(Rc::new(new_function)));
         self.emit_constant_instruction(OpCode::LoadConstant, index, id.line);
 
         self.scope_depth = enclosing_depth;

@@ -6,7 +6,7 @@ use crate::{
         errors::{InterpretError, SyntaxError},
         token::{Token, TokenType},
     },
-    scanner::Scanner,
+    frontend::scanner::Scanner,
 };
 
 /// An iterator over the statements in the code.

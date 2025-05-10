@@ -7,7 +7,7 @@ use std::{
 };
 
 use lox_bytecode_vm::interpret;
-use lox_bytecode_vm::vm::VM;
+use lox_bytecode_vm::VM;
 
 fn repl() {
     let mut vm = VM::new(Box::new(std::io::stdout()));

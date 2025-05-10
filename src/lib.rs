@@ -1,20 +1,19 @@
 mod ast;
-mod chunk;
-mod compiler;
+mod bytecode;
 mod core;
-mod functions;
-mod heap;
-mod opcode;
-mod parser;
-mod scanner;
-pub mod vm;
+mod frontend;
+mod object;
+mod runtime;
 
 use std::io::Write;
+use std::rc::Rc;
 
-use compiler::Compiler;
-use parser::Parser;
-use scanner::Scanner;
-use vm::{Frame, VM};
+use bytecode::Compiler;
+use frontend::Parser;
+use frontend::Scanner;
+use runtime::Frame;
+
+pub use runtime::VM;
 
 pub fn interpret(source: &str, vm: &mut VM, mut err_writer: impl Write) {
     let scanner = Scanner::new(source);
@@ -23,7 +22,7 @@ pub fn interpret(source: &str, vm: &mut VM, mut err_writer: impl Write) {
     let main = Compiler::new(parser, vm.heap_mut()).compile();
     match main {
         Ok(main) => {
-            let frame = Frame::new(main, 0);
+            let frame = Frame::new(Rc::new(main), 0);
             if let Err(e) = vm.run(frame) {
                 writeln!(err_writer, "{e}").unwrap();
             }

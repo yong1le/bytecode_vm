@@ -1,108 +1,24 @@
 use std::{collections::HashMap, io::Write};
 
+use super::{frame::Frame, heap::Heap, Return, FRAME_MAX, STACK_MAX, VM};
 use crate::{
-    chunk::Chunk,
+    bytecode::Chunk,
     core::{
         errors::{CompileError, InterpretError, PanicError, RuntimeError},
-        value::{Object, Value},
+        OpCode, Value,
     },
-    functions::Function,
-    heap::{Heap, HeapIndex},
-    opcode::OpCode,
+    object::Object,
 };
 
-#[derive(Debug)]
-pub struct Frame {
-    /// Index into a chunk's code
-    ip: usize,
-    /// Index into the VM's stack
-    fp: usize,
-    function: Function,
-}
-
-impl Frame {
-    pub fn new(function: Function, fp: usize) -> Self {
-        Self {
-            ip: 0,
-            fp,
-            function,
-        }
-    }
-}
-
-pub struct VM<'a> {
-    frames: Vec<Frame>,
-    stack: Vec<Value>,
-    heap: Heap,
-    globals: HashMap<String, Value>,
-    writer: Box<dyn Write + 'a>,
-}
-
-type Return = Result<(), InterpretError>;
-
 impl<'a> VM<'a> {
-    const FRAME_MAX: usize = 64;
-    const STACK_MAX: usize = 256;
     pub fn new(writer: Box<dyn Write + 'a>) -> Self {
-        VM {
-            frames: Vec::with_capacity(Self::FRAME_MAX),
-            stack: Vec::with_capacity(Self::STACK_MAX),
+        Self {
+            frames: Vec::with_capacity(FRAME_MAX),
+            stack: Vec::with_capacity(STACK_MAX),
             heap: Heap::new(),
             globals: HashMap::new(),
             writer,
         }
-    }
-
-    /// Returns a mutable reference to the VM's heap
-    pub fn heap_mut(&mut self) -> &mut Heap {
-        &mut self.heap
-    }
-
-    /// Pushes a new value at the top of the stack
-    fn stack_push(&mut self, value: Value) {
-        self.stack.push(value);
-    }
-
-    /// Removes and returns the elemtn at the top of the stack
-    fn stack_pop(&mut self) -> Value {
-        self.stack.pop().unwrap_or(Value::nil())
-    }
-
-    /// Returns the `i`'th element from the top of the stack
-    fn stack_peek(&self, i: usize) -> Value {
-        let last = self.stack.len() - 1;
-        *self.stack.get(last - i).unwrap_or(&Value::nil())
-    }
-
-    /// Returns the `i`th element from the bottom of the stack
-    fn stack_get(&self, i: usize) -> Value {
-        let fp = self.get_frame().fp;
-        *self.stack.get(fp + i).unwrap_or(&Value::nil())
-    }
-
-    fn stack_set(&mut self, i: usize, value: Value) {
-        let fp = self.get_frame().fp;
-        self.stack[fp + i] = value;
-    }
-
-    /// Allocates a new entry in the heap, and returns the index
-    fn heap_alloc(&mut self, obj: Object) -> HeapIndex {
-        self.heap.push(obj)
-    }
-
-    /// Gets an object on the heap based on the index `value`
-    fn heap_get(&self, value: &HeapIndex) -> Option<&Object> {
-        self.heap.get(value)
-    }
-
-    fn get_frame(&self) -> &Frame {
-        let i = self.frames.len() - 1;
-        &self.frames[i]
-    }
-
-    fn get_frame_mut(&mut self) -> &mut Frame {
-        let i = self.frames.len() - 1;
-        &mut self.frames[i]
     }
 
     fn get_ip(&self) -> usize {
@@ -130,16 +46,7 @@ impl<'a> VM<'a> {
         self.get_chunk().get_line(ip)
     }
 
-    /// Prints a dump of the stack
-    fn stack_dump(&self) {
-        print!("STACK     ");
-        for value in &self.stack {
-            print!("[ {} ]", self.format_value(value))
-        }
-        println!();
-    }
-
-    fn format_value(&self, value: &Value) -> String {
+    pub(crate) fn format_value(&self, value: &Value) -> String {
         if value.is_object() {
             match self.heap_get(value) {
                 Some(Object::String(s)) => s.to_string(),
@@ -162,7 +69,7 @@ impl<'a> VM<'a> {
 impl VM<'_> {
     pub fn run(&mut self, frame: Frame) -> Return {
         self.frames.push(frame);
-        self.stack.push(Value::nil());
+        self.stack.push(Value::number(0.0));
 
         while self.get_ip() < self.get_code_length() {
             let ip = self.get_ip();

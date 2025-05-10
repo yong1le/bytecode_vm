@@ -2,9 +2,9 @@ use std::collections::HashMap;
 
 use slab::Slab;
 
-use crate::core::value::{Object, Value};
+use crate::{core::Value, object::Object};
 
-pub type HeapIndex = Value;
+use super::VM;
 
 pub struct Heap {
     objects: Slab<Object>,
@@ -19,7 +19,7 @@ impl Heap {
         }
     }
 
-    pub fn push(&mut self, obj: Object) -> HeapIndex {
+    pub fn push(&mut self, obj: Object) -> Value {
         let add_string = match &obj {
             Object::String(s) => {
                 if let Some(index) = self.intern_table.get(s) {
@@ -37,7 +37,7 @@ impl Heap {
         Value::object(index)
     }
 
-    pub fn get(&self, value: &HeapIndex) -> Option<&Object> {
+    pub fn get(&self, value: &Value) -> Option<&Object> {
         if !value.is_object() {
             return None;
         }
@@ -57,5 +57,22 @@ impl Heap {
             )
         }
         println!();
+    }
+}
+
+impl VM<'_> {
+    /// Returns a mutable reference to the VM's heap
+    pub fn heap_mut(&mut self) -> &mut Heap {
+        &mut self.heap
+    }
+
+    /// Allocates a new entry in the heap, and returns the index
+    pub(crate) fn heap_alloc(&mut self, obj: Object) -> Value {
+        self.heap.push(obj)
+    }
+
+    /// Gets an object on the heap based on the index `value`
+    pub(crate) fn heap_get(&self, value: &Value) -> Option<&Object> {
+        self.heap.get(value)
     }
 }
