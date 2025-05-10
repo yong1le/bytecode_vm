@@ -5,9 +5,10 @@ mod vm;
 
 pub use frame::Frame;
 pub use heap::Heap;
+use rustc_hash::FxHashMap;
 
 use crate::core::{errors::InterpretError, Value};
-use std::{collections::HashMap, io::Write};
+use std::io::Write;
 
 type Return = Result<(), InterpretError>;
 
@@ -18,6 +19,6 @@ pub struct VM<'a> {
     frames: Vec<Frame>,
     stack: Vec<Value>,
     heap: Heap,
-    globals: HashMap<String, Value>,
+    globals: FxHashMap<u64, Value>,
     writer: Box<dyn Write + 'a>,
 }

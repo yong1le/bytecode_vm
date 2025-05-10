@@ -1,4 +1,6 @@
-use std::{collections::HashMap, io::Write};
+use std::io::Write;
+
+use rustc_hash::FxHashMap;
 
 use super::{frame::Frame, heap::Heap, Return, FRAME_MAX, STACK_MAX, VM};
 use crate::{
@@ -16,31 +18,37 @@ impl<'a> VM<'a> {
             frames: Vec::with_capacity(FRAME_MAX),
             stack: Vec::with_capacity(STACK_MAX),
             heap: Heap::new(),
-            globals: HashMap::new(),
+            globals: FxHashMap::default(),
             writer,
         }
     }
 
+    #[inline]
     fn get_ip(&self) -> usize {
         self.get_frame().ip
     }
 
+    #[inline]
     fn increment_ip(&mut self, offset: usize) {
         self.get_frame_mut().ip += offset;
     }
 
+    #[inline]
     fn decrement_ip(&mut self, offset: usize) {
         self.get_frame_mut().ip -= offset;
     }
 
+    #[inline]
     fn get_chunk(&self) -> &Chunk {
         &self.get_frame().function.chunk
     }
 
+    #[inline]
     fn get_code_length(&self) -> usize {
         self.get_frame().function.chunk.code.len()
     }
 
+    #[inline]
     fn get_current_line(&self) -> u32 {
         let ip = self.get_ip();
         self.get_chunk().get_line(ip)
@@ -68,7 +76,7 @@ impl<'a> VM<'a> {
 // bytecode execution functions
 impl VM<'_> {
     pub fn run(&mut self, frame: Frame) -> Return {
-        self.frames.push(frame);
+        self.push_frame(frame);
         self.stack.push(Value::number(0.0));
 
         while self.get_ip() < self.get_code_length() {
@@ -151,8 +159,7 @@ impl VM<'_> {
                                         ),
                                     ));
                                 }
-                                self.frames
-                                    .push(Frame::new(f.clone(), self.stack.len() - argc - 1));
+                                self.push_frame(Frame::new(f.clone(), self.stack.len() - argc - 1));
                             }
                             Some(_) => {
                                 return Err(InterpretError::Runtime(RuntimeError::InvalidCall(
@@ -177,7 +184,7 @@ impl VM<'_> {
                     self.increment_ip(1);
                     let return_val = self.stack_pop();
 
-                    let popped_frame = self.frames.pop().unwrap();
+                    let popped_frame = self.pop_frame();
                     if self.frames.is_empty() {
                         self.stack_pop();
                         return Ok(());
@@ -303,37 +310,13 @@ impl VM<'_> {
         let right = self.stack_pop();
         let left = self.stack_pop();
 
-        match (left, right) {
-            (n1, n2) if n1.is_number() && n2.is_number() => {
-                self.stack_push(Value::boolean(if equality {
-                    n1.as_number() == n2.as_number()
-                } else {
-                    n1.as_number() != n2.as_number()
-                }))
-            }
-            (b1, b2) if b1.is_boolean() && b2.is_boolean() => {
-                self.stack_push(Value::boolean(if equality {
-                    b1.as_boolean() == b2.as_boolean()
-                } else {
-                    b1.as_boolean() != b2.as_boolean()
-                }))
-            }
-            (n1, n2) if n1.is_nil() && n2.is_nil() => self.stack_push(Value::boolean(equality)),
-            (o1, o2) if o1.is_object() && o2.is_object() => {
-                match (self.heap_get(&o1), self.heap_get(&o2)) {
-                    (Some(Object::String(s1)), Some(Object::String(s2))) => {
-                        self.stack_push(Value::boolean(if equality { s1 == s2 } else { s1 != s2 }))
-                    }
-                    _ => {
-                        return Err(InterpretError::Panic(PanicError::DeallocatedObject(
-                            self.get_current_line(),
-                        )));
-                    }
-                }
-            }
-            _ => self.stack_push(Value::boolean(!equality)),
-        }
+        let result = if equality {
+            left.bits == right.bits
+        } else {
+            left.bits != right.bits
+        };
 
+        self.stack_push(Value::boolean(result));
         self.increment_ip(1);
         Ok(())
     }
@@ -396,14 +379,13 @@ impl VM<'_> {
     fn run_define_global(&mut self, operands: u8) -> Return {
         let value = self.stack_pop();
 
-        let ip = self.get_ip();
         self.increment_ip(1);
         let index = self.read_operand(operands);
 
         let name_value = self.get_chunk().constants[index];
-        let name = self.get_variable_name(&name_value, ip)?;
+        // let name = self.get_variable_name(&name_value, ip)?;
 
-        self.globals.insert(name, value);
+        self.globals.insert(name_value.bits, value);
 
         Ok(())
     }
@@ -414,9 +396,8 @@ impl VM<'_> {
         let index = self.read_operand(operands);
 
         let name_value = self.get_chunk().constants[index];
-        let name = self.get_variable_name(&name_value, ip)?;
 
-        let value = self.globals.get(&name);
+        let value = self.globals.get(&name_value.bits);
         match value {
             Some(v) => {
                 self.stack_push(*v);
@@ -424,7 +405,7 @@ impl VM<'_> {
             None => {
                 return Err(InterpretError::Runtime(RuntimeError::NameError(
                     self.get_current_line(),
-                    name,
+                    self.get_variable_name(&name_value, ip)?,
                 )))
             }
         }
@@ -440,16 +421,16 @@ impl VM<'_> {
         let index = self.read_operand(operands);
 
         let name_value = self.get_chunk().constants[index];
-        let name = self.get_variable_name(&name_value, ip)?;
+        // let name = self.get_variable_name(&name_value, ip)?;
 
-        match self.globals.contains_key(&name) {
+        match self.globals.contains_key(&name_value.bits) {
             true => {
-                self.globals.insert(name, value);
+                self.globals.insert(name_value.bits, value);
             }
             false => {
                 return Err(InterpretError::Runtime(RuntimeError::NameError(
                     self.get_current_line(),
-                    name,
+                    self.get_variable_name(&name_value, ip)?,
                 )));
             }
         }

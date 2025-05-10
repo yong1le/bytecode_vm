@@ -6,7 +6,7 @@ static TRUE_TAG: u64 = 3;
 
 #[derive(Clone, Copy)]
 pub struct Value {
-    bits: u64,
+    pub bits: u64,
 }
 
 impl std::fmt::Debug for Value {

@@ -33,4 +33,12 @@ impl VM<'_> {
         let i = self.frames.len() - 1;
         &mut self.frames[i]
     }
+
+    pub(crate) fn push_frame(&mut self, frame: Frame) {
+        self.frames.push(frame);
+    }
+
+    pub(crate) fn pop_frame(&mut self) -> Frame {
+        self.frames.pop().unwrap()
+    }
 }
