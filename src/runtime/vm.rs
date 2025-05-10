@@ -9,7 +9,7 @@ use crate::{
         errors::{CompileError, InterpretError, PanicError, RuntimeError},
         OpCode, Value,
     },
-    object::Object,
+    object::{native::Clock, Object},
 };
 
 impl<'a> VM<'a> {
@@ -59,6 +59,7 @@ impl<'a> VM<'a> {
             match self.heap_get(value) {
                 Some(Object::String(s)) => s.to_string(),
                 Some(Object::Function(f)) => format!("<fn {}>", f.name),
+                Some(Object::Native(_)) => "<native fn>".to_string(),
                 None => "nil".to_string(),
             }
         } else if value.is_number() {
@@ -75,9 +76,18 @@ impl<'a> VM<'a> {
 
 // bytecode execution functions
 impl VM<'_> {
+    fn insert_native_fn(&mut self, name: &str, native: Object) {
+        let name_idx = self.heap.push(Object::String(name.to_owned()));
+        let native_idx = self.heap.push(native);
+        self.globals.insert(name_idx.bits, native_idx);
+    }
+
     pub fn run(&mut self, frame: Frame) -> Return {
         self.push_frame(frame);
         self.stack_push(Value::number(0.0));
+
+        // Push native functions
+        self.insert_native_fn("clock", Object::Native(Box::new(Clock)));
 
         while self.get_ip() < self.get_code_length() {
             let ip = self.get_ip();
@@ -439,6 +449,19 @@ impl VM<'_> {
                         ));
                     }
                     self.push_frame(Frame::new(f.clone(), self.stack.len() - argc - 1));
+                }
+                Some(Object::Native(n)) => {
+                    if argc != n.arity() as usize {
+                        return Err(InterpretError::Runtime(
+                            RuntimeError::FunctionCallArityMismatch(
+                                self.get_current_line(),
+                                n.arity() as usize,
+                                argc,
+                            ),
+                        ));
+                    }
+                    let result = n.call(vec![]);
+                    self.stack_push(result);
                 }
                 Some(_) => {
                     return Err(InterpretError::Runtime(RuntimeError::InvalidCall(

@@ -13,3 +13,5 @@ rustc-hash = "2"
 
 [profile.release]
 debug = true
+lto = true
+codegen-units = 1

@@ -3,7 +3,6 @@ use std::{
     fs::File,
     io::{self, Read, Write},
     process::exit,
-    time::Instant,
 };
 
 use lox_bytecode_vm::interpret;
@@ -39,9 +38,7 @@ fn main() {
     if args.len() == 1 {
         repl();
     } else if args.len() == 2 {
-        let start = Instant::now();
         run_file(&args[1]);
-        eprintln!("Took {:?}", start.elapsed())
     } else {
         eprintln!("Usage: {} [script]", args[0]);
         exit(64);

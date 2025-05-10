@@ -16,8 +16,16 @@ use locals::Local;
 
 type Return = Result<(), InterpretError>;
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[repr(u8)]
+enum FunctionType {
+    Main,
+    Function,
+}
+
 pub struct Compiler<'a> {
     statements: Parser<'a>,
+    function_type: FunctionType,
     function: Function,
     heap: &'a mut Heap,
     /// The depth of nested scopes the compiler is currently in, 0 is the global scope
@@ -33,6 +41,7 @@ impl<'a> Compiler<'a> {
             function: Function::new("main".to_string(), 0),
             scope_depth: 0,
             locals: vec![Local::new("".to_string(), 0)],
+            function_type: FunctionType::Main,
         }
     }
 

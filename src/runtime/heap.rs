@@ -53,6 +53,7 @@ impl Heap {
                 match value {
                     Object::String(s) => s,
                     Object::Function(f) => &f.name,
+                    Object::Native(_) => "<native fn>",
                 }
             )
         }

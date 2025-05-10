@@ -5,16 +5,15 @@ use crate::{
         expr::{Expr, ExprVisitor},
         stmt::{Stmt, StmtVisitor},
     },
-    core::OpCode,
     core::{
-        errors::{InterpretError, PanicError},
+        errors::{CompileError, InterpretError, PanicError},
         token::{Token, TokenType},
-        Value,
+        OpCode, Value,
     },
     object::{Function, Object},
 };
 
-use super::{locals::Local, Compiler, Return};
+use super::{locals::Local, Compiler, FunctionType, Return};
 
 impl StmtVisitor<Return> for Compiler<'_> {
     fn visit_print(&mut self, token: Token, expr: Expr) -> Return {
@@ -110,8 +109,18 @@ impl StmtVisitor<Return> for Compiler<'_> {
         let enclosing_locals =
             std::mem::replace(&mut self.locals, vec![Local::new("".to_string(), 1)]);
 
+        let enclosing_type = self.function_type;
+        self.function_type = FunctionType::Function;
+
         for param in params {
-            self.declare_local(param.lexeme, param.line)?;
+            if let Err(e) = self.declare_local(param.lexeme, param.line) {
+                self.function = enclosing_function;
+                self.scope_depth = enclosing_depth;
+                self.locals = enclosing_locals;
+                self.function_type = enclosing_type;
+
+                return Err(e);
+            };
             self.define_local();
         }
 
@@ -119,6 +128,7 @@ impl StmtVisitor<Return> for Compiler<'_> {
             self.function = enclosing_function;
             self.scope_depth = enclosing_depth;
             self.locals = enclosing_locals;
+            self.function_type = enclosing_type;
 
             return Err(e);
         }
@@ -141,6 +151,10 @@ impl StmtVisitor<Return> for Compiler<'_> {
     }
 
     fn visit_return(&mut self, token: Token, expr: Expr) -> Return {
+        if self.function_type == FunctionType::Main {
+            return Err(InterpretError::Compile(CompileError::TopReturn(token.line)));
+        }
+
         self.compile_expr(expr)?;
         self.emit_byte(OpCode::Return as u8, token.line);
         Ok(())

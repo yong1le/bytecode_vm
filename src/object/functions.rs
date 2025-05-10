@@ -1,12 +1,5 @@
 use crate::bytecode::Chunk;
 
-#[derive(Debug, Clone, Copy)]
-#[repr(u8)]
-pub enum FunctionType {
-    Main,
-    Function,
-}
-
 pub struct Function {
     pub name: String,
     pub arity: u8,
