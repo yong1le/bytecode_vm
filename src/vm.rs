@@ -2,62 +2,132 @@ use std::{collections::HashMap, io::Write};
 
 use crate::{
     chunk::Chunk,
-    core::value::Value,
     core::{
         errors::{CompileError, InterpretError, PanicError, RuntimeError},
-        value::Object,
+        value::{Object, Value},
     },
+    functions::Function,
     heap::{Heap, HeapIndex},
     opcode::OpCode,
 };
 
-pub struct VM<'a> {
+#[derive(Debug)]
+pub struct Frame {
+    /// Index into a chunk's code
     ip: usize,
+    /// Index into the VM's stack
+    fp: usize,
+    function: Function,
+}
+
+impl Frame {
+    pub fn new(function: Function, fp: usize) -> Self {
+        Self {
+            ip: 0,
+            fp,
+            function,
+        }
+    }
+}
+
+pub struct VM<'a> {
+    frames: Vec<Frame>,
     stack: Vec<Value>,
     heap: Heap,
     globals: HashMap<String, Value>,
-    chunk: Chunk,
     writer: Box<dyn Write + 'a>,
 }
 
 type Return = Result<(), InterpretError>;
 
 impl<'a> VM<'a> {
+    const FRAME_MAX: usize = 64;
     const STACK_MAX: usize = 256;
     pub fn new(writer: Box<dyn Write + 'a>) -> Self {
         VM {
-            ip: 0,
+            frames: Vec::with_capacity(Self::FRAME_MAX),
             stack: Vec::with_capacity(Self::STACK_MAX),
             heap: Heap::new(),
             globals: HashMap::new(),
-            chunk: Chunk::new(),
             writer,
         }
     }
 
     /// Returns a mutable reference to the VM's heap
-    pub fn heap(&mut self) -> &mut Heap {
+    pub fn heap_mut(&mut self) -> &mut Heap {
         &mut self.heap
     }
 
-    /// Pushes a new value at the back of the stack
-    fn push(&mut self, value: Value) {
+    /// Pushes a new value at the top of the stack
+    fn stack_push(&mut self, value: Value) {
         self.stack.push(value);
     }
 
-    /// Removes and returns the last value on the stack
-    fn pop(&mut self) -> Value {
+    /// Removes and returns the elemtn at the top of the stack
+    fn stack_pop(&mut self) -> Value {
         self.stack.pop().unwrap_or(Value::nil())
     }
 
+    /// Returns the `i`'th element from the top of the stack
+    fn stack_peek(&self, i: usize) -> Value {
+        let last = self.stack.len() - 1;
+        *self.stack.get(last - i).unwrap_or(&Value::nil())
+    }
+
+    /// Returns the `i`th element from the bottom of the stack
+    fn stack_get(&self, i: usize) -> Value {
+        let fp = self.get_frame().fp;
+        *self.stack.get(fp + i).unwrap_or(&Value::nil())
+    }
+
+    fn stack_set(&mut self, i: usize, value: Value) {
+        let fp = self.get_frame().fp;
+        self.stack[fp + i] = value;
+    }
+
     /// Allocates a new entry in the heap, and returns the index
-    fn alloc(&mut self, obj: Object) -> HeapIndex {
+    fn heap_alloc(&mut self, obj: Object) -> HeapIndex {
         self.heap.push(obj)
     }
 
     /// Gets an object on the heap based on the index `value`
-    fn get_obj(&self, value: &HeapIndex) -> Option<&Object> {
+    fn heap_get(&self, value: &HeapIndex) -> Option<&Object> {
         self.heap.get(value)
+    }
+
+    fn get_frame(&self) -> &Frame {
+        let i = self.frames.len() - 1;
+        &self.frames[i]
+    }
+
+    fn get_frame_mut(&mut self) -> &mut Frame {
+        let i = self.frames.len() - 1;
+        &mut self.frames[i]
+    }
+
+    fn get_ip(&self) -> usize {
+        self.get_frame().ip
+    }
+
+    fn increment_ip(&mut self, offset: usize) {
+        self.get_frame_mut().ip += offset;
+    }
+
+    fn decrement_ip(&mut self, offset: usize) {
+        self.get_frame_mut().ip -= offset;
+    }
+
+    fn get_chunk(&self) -> &Chunk {
+        &self.get_frame().function.chunk
+    }
+
+    fn get_code_length(&self) -> usize {
+        self.get_frame().function.chunk.code.len()
+    }
+
+    fn get_current_line(&self) -> u32 {
+        let ip = self.get_ip();
+        self.get_chunk().get_line(ip)
     }
 
     /// Prints a dump of the stack
@@ -71,8 +141,9 @@ impl<'a> VM<'a> {
 
     fn format_value(&self, value: &Value) -> String {
         if value.is_object() {
-            match self.get_obj(value) {
+            match self.heap_get(value) {
                 Some(Object::String(s)) => s.to_string(),
+                Some(Object::Function(f)) => format!("<fn {}>", f.name),
                 None => "nil".to_string(),
             }
         } else if value.is_number() {
@@ -89,18 +160,19 @@ impl<'a> VM<'a> {
 
 // bytecode execution functions
 impl VM<'_> {
-    pub fn run(&mut self, chunk: Chunk) -> Return {
-        self.ip = 0;
-        self.chunk = chunk;
+    pub fn run(&mut self, frame: Frame) -> Return {
+        self.frames.push(frame);
+        self.stack.push(Value::nil());
 
-        while self.ip < self.chunk.code.len() {
-            let op = self.chunk.code[self.ip];
+        while self.get_ip() < self.get_code_length() {
+            let ip = self.get_ip();
+            let op = self.get_chunk().code[ip];
 
             #[cfg(debug_assertions)]
             {
                 self.stack_dump();
                 self.heap.dump();
-                self.chunk.disassemble_instruction(self.ip);
+                self.get_chunk().disassemble_instruction(ip);
             }
 
             match OpCode::try_from(op) {
@@ -119,13 +191,13 @@ impl VM<'_> {
                 Ok(OpCode::GreaterThan) => self.run_numeric_binary(OpCode::GreaterThan)?,
                 Ok(OpCode::GreaterEqual) => self.run_numeric_binary(OpCode::GreaterEqual)?,
                 Ok(OpCode::Print) => {
-                    let constant = self.pop();
+                    let constant = self.stack_pop();
                     writeln!(self.writer, "{}", self.format_value(&constant)).unwrap();
-                    self.ip += 1;
+                    self.increment_ip(1);
                 }
                 Ok(OpCode::Pop) => {
-                    self.pop();
-                    self.ip += 1;
+                    self.stack_pop();
+                    self.increment_ip(1);
                 }
                 Ok(OpCode::DefineGlobal) => self.run_define_global(1)?,
                 Ok(OpCode::DefineGlobalLong) => self.run_define_global(3)?,
@@ -138,30 +210,72 @@ impl VM<'_> {
                 Ok(OpCode::SetLocal) => self.run_set_local(1)?,
                 Ok(OpCode::SetLocalLong) => self.run_set_local(3)?,
                 Ok(OpCode::JumpIfFalse) => {
-                    self.ip += 1;
+                    self.increment_ip(1);
                     let jump_distance = self.read_operand(2);
-                    let condition = *self.stack.last().unwrap_or(&Value::nil());
+                    let condition = self.stack_peek(0);
 
                     if !condition.is_truthy() {
-                        self.ip += jump_distance
+                        self.increment_ip(jump_distance);
                     }
                 }
                 Ok(OpCode::Jump) => {
-                    self.ip += 1;
+                    self.increment_ip(1);
                     let jump_distance = self.read_operand(2);
-                    self.ip += jump_distance;
+                    self.increment_ip(jump_distance);
                 }
                 Ok(OpCode::Loop) => {
-                    self.ip += 1;
+                    self.increment_ip(1);
                     let jump_distance = self.read_operand(2);
-                    self.ip -= jump_distance;
+                    self.decrement_ip(jump_distance);
                 }
-                Ok(OpCode::Return) => self.run_return()?,
-                Ok(OpCode::Nop) => self.ip += 1,
+                Ok(OpCode::Call) => {
+                    self.increment_ip(1);
+                    let argc = self.read_operand(1);
+                    let callee = self.stack_peek(argc);
+                    if callee.is_object() {
+                        match self.heap_get(&callee) {
+                            Some(Object::Function(f)) => {
+                                // FIXME: cloning a function is too expensive, cosnider using an arena
+                                self.frames
+                                    .push(Frame::new(f.clone(), self.stack.len() - argc - 1));
+                            }
+                            Some(_) => {
+                                return Err(InterpretError::Runtime(RuntimeError::InvalidCall(
+                                    self.get_current_line(),
+                                    self.format_value(&callee),
+                                )));
+                            }
+                            None => {
+                                return Err(InterpretError::Panic(PanicError::DeallocatedObject(
+                                    self.get_current_line(),
+                                )))
+                            }
+                        }
+                    } else {
+                        return Err(InterpretError::Runtime(RuntimeError::InvalidCall(
+                            self.get_current_line(),
+                            self.format_value(&callee),
+                        )));
+                    }
+                }
+                Ok(OpCode::Return) => {
+                    self.increment_ip(1);
+                    let return_val = self.stack_pop();
+
+                    let popped_frame = self.frames.pop().unwrap();
+                    if self.frames.is_empty() {
+                        self.stack_pop();
+                        return Ok(());
+                    }
+
+                    self.stack.truncate(popped_frame.fp);
+                    self.stack_push(return_val);
+                }
+                Ok(OpCode::Nop) => self.increment_ip(1),
                 Err(_) => {
-                    self.ip += 1;
+                    self.increment_ip(1);
                     return Err(InterpretError::Compile(CompileError::InvalidOpCode(
-                        self.chunk.get_line(self.ip),
+                        self.get_current_line(),
                         op,
                     )));
                 }
@@ -175,191 +289,203 @@ impl VM<'_> {
     /// only consumes the current byte. Advances the interal `ip` counter pass all the
     /// bytes read.
     fn read_operand(&mut self, operands: u8) -> usize {
+        let ip = self.get_ip();
+        let code = &self.get_chunk().code;
+
         if operands == 3 {
-            let low_byte = self.chunk.code[self.ip] as usize;
-            let mid_byte = self.chunk.code[self.ip + 1] as usize;
-            let high_byte = self.chunk.code[self.ip + 2] as usize;
-            self.ip += 3;
+            let low_byte = code[ip] as usize;
+            let mid_byte = code[ip + 1] as usize;
+            let high_byte = code[ip + 2] as usize;
+            self.increment_ip(3);
             (high_byte << 16) | (mid_byte << 8) | low_byte
         } else if operands == 2 {
-            let low_byte = self.chunk.code[self.ip] as usize;
-            let high_byte = self.chunk.code[self.ip + 1] as usize;
-            self.ip += 2;
-
+            let low_byte = code[ip] as usize;
+            let high_byte = code[ip + 1] as usize;
+            self.increment_ip(2);
             (high_byte << 8) | low_byte
         } else if operands == 1 {
-            self.ip += 1;
-            self.chunk.code[self.ip - 1] as usize
+            let byte = code[ip] as usize;
+            self.increment_ip(1);
+            byte
         } else {
             panic!("<read_operand> only acepts 1, 2, or 3")
         }
     }
 
     fn run_constant(&mut self, operands: u8) -> Return {
-        self.ip += 1;
+        self.increment_ip(1);
         let index = self.read_operand(operands);
-        self.push(self.chunk.constants[index]);
+        let constant = self.get_chunk().constants[index];
+        self.stack_push(constant);
         Ok(())
     }
 
     fn run_negate(&mut self) -> Return {
-        let constant = self.pop();
+        let constant = self.stack_pop();
         match constant {
             n if n.is_number() => {
-                self.push(Value::number(-n.as_number()));
+                self.stack_push(Value::number(-n.as_number()));
             }
             _ => {
                 return Err(InterpretError::Runtime(RuntimeError::OperandMismatch(
-                    self.chunk.get_line(self.ip),
+                    self.get_current_line(),
                     "numbers".to_string(),
-                )))
+                )));
             }
         }
 
-        self.ip += 1;
+        self.increment_ip(1);
         Ok(())
     }
 
     #[inline]
     fn run_not(&mut self) -> Return {
-        let constant = self.pop();
-        self.push(Value::boolean(!constant.is_truthy()));
+        let constant = self.stack_pop();
+        self.stack_push(Value::boolean(!constant.is_truthy()));
 
-        self.ip += 1;
+        self.increment_ip(1);
         Ok(())
     }
 
     fn run_add(&mut self) -> Return {
-        let right = self.pop();
-        let left = self.pop();
+        let right = self.stack_pop();
+        let left = self.stack_pop();
         match (left, right) {
             (n1, n2) if n1.is_number() && n2.is_number() => {
-                self.push(Value::number(n1.as_number() + n2.as_number()))
+                self.stack_push(Value::number(n1.as_number() + n2.as_number()))
             }
             (s1, s2) if s1.is_object() && s2.is_object() => {
-                let s1 = self.get_obj(&s1);
-                let s2 = self.get_obj(&s2);
+                let s1 = self.heap_get(&s1);
+                let s2 = self.heap_get(&s2);
 
                 match (s1, s2) {
                     (Some(Object::String(s1)), Some(Object::String(s2))) => {
                         let s = format!("{s1}{s2}");
-                        let value = self.alloc(Object::String(s));
-                        self.push(value);
+                        let value = self.heap_alloc(Object::String(s));
+                        self.stack_push(value);
                     }
                     _ => {
                         return Err(InterpretError::Runtime(RuntimeError::OperandMismatch(
-                            self.chunk.get_line(self.ip),
+                            self.get_current_line(),
                             "numbers or strings".to_string(),
-                        )))
+                        )));
                     }
                 }
             }
             _ => {
                 return Err(InterpretError::Runtime(RuntimeError::OperandMismatch(
-                    self.chunk.get_line(self.ip),
+                    self.get_current_line(),
                     "numbers or strings".to_string(),
-                )))
+                )));
             }
         }
 
-        self.ip += 1;
+        self.increment_ip(1);
         Ok(())
     }
 
     fn run_equals(&mut self, equality: bool) -> Return {
-        let right = self.pop();
-        let left = self.pop();
+        let right = self.stack_pop();
+        let left = self.stack_pop();
 
         match (left, right) {
             (n1, n2) if n1.is_number() && n2.is_number() => {
-                self.push(Value::boolean(if equality {
+                self.stack_push(Value::boolean(if equality {
                     n1.as_number() == n2.as_number()
                 } else {
                     n1.as_number() != n2.as_number()
                 }))
             }
             (b1, b2) if b1.is_boolean() && b2.is_boolean() => {
-                self.push(Value::boolean(if equality {
+                self.stack_push(Value::boolean(if equality {
                     b1.as_boolean() == b2.as_boolean()
                 } else {
                     b1.as_boolean() != b2.as_boolean()
                 }))
             }
-            (n1, n2) if n1.is_nil() && n2.is_nil() => self.push(Value::boolean(equality)),
+            (n1, n2) if n1.is_nil() && n2.is_nil() => self.stack_push(Value::boolean(equality)),
             (o1, o2) if o1.is_object() && o2.is_object() => {
-                match (self.get_obj(&o1), self.get_obj(&o2)) {
+                match (self.heap_get(&o1), self.heap_get(&o2)) {
                     (Some(Object::String(s1)), Some(Object::String(s2))) => {
-                        self.push(Value::boolean(if equality { s1 == s2 } else { s1 != s2 }))
+                        self.stack_push(Value::boolean(if equality { s1 == s2 } else { s1 != s2 }))
                     }
                     _ => {
                         return Err(InterpretError::Panic(PanicError::DeallocatedObject(
-                            self.chunk.get_line(self.ip),
-                        )))
+                            self.get_current_line(),
+                        )));
                     }
                 }
             }
-            _ => self.push(Value::boolean(!equality)),
+            _ => self.stack_push(Value::boolean(!equality)),
         }
 
-        self.ip += 1;
+        self.increment_ip(1);
         Ok(())
     }
 
     /// Binary operations that only work on numbers
     fn run_numeric_binary(&mut self, op: OpCode) -> Return {
-        let right = self.pop();
-        let left = self.pop();
+        let right = self.stack_pop();
+        let left = self.stack_pop();
         match (left, right) {
             (n1, n2) if n1.is_number() && n2.is_number() => match op {
-                OpCode::Subtract => self.push(Value::number(n1.as_number() - n2.as_number())),
-                OpCode::Multiply => self.push(Value::number(n1.as_number() * n2.as_number())),
-                OpCode::Divide => self.push(Value::number(n1.as_number() / n2.as_number())),
-                OpCode::LessThan => self.push(Value::boolean(n1.as_number() < n2.as_number())),
-                OpCode::LessEqual => self.push(Value::boolean(n1.as_number() <= n2.as_number())),
-                OpCode::GreaterThan => self.push(Value::boolean(n1.as_number() > n2.as_number())),
-                OpCode::GreaterEqual => self.push(Value::boolean(n1.as_number() >= n2.as_number())),
+                OpCode::Subtract => self.stack_push(Value::number(n1.as_number() - n2.as_number())),
+                OpCode::Multiply => self.stack_push(Value::number(n1.as_number() * n2.as_number())),
+                OpCode::Divide => self.stack_push(Value::number(n1.as_number() / n2.as_number())),
+                OpCode::LessThan => {
+                    self.stack_push(Value::boolean(n1.as_number() < n2.as_number()))
+                }
+                OpCode::LessEqual => {
+                    self.stack_push(Value::boolean(n1.as_number() <= n2.as_number()))
+                }
+                OpCode::GreaterThan => {
+                    self.stack_push(Value::boolean(n1.as_number() > n2.as_number()))
+                }
+                OpCode::GreaterEqual => {
+                    self.stack_push(Value::boolean(n1.as_number() >= n2.as_number()))
+                }
                 _ => {
                     return Err(InterpretError::Panic(PanicError::General(
-                        self.chunk.get_line(self.ip),
+                        self.get_current_line(),
                         format!("Invalid OP_CODE: '{:?}'", op),
                     )))
                 }
             },
             _ => {
                 return Err(InterpretError::Runtime(RuntimeError::OperandMismatch(
-                    self.chunk.get_line(self.ip),
+                    self.get_current_line(),
                     "numbers".to_string(),
                 )))
             }
         }
 
-        self.ip += 1;
+        self.increment_ip(1);
         Ok(())
     }
 
     fn get_variable_name(&mut self, name: &Value, ip: usize) -> Result<String, InterpretError> {
         if name.is_object() {
-            match self.get_obj(name) {
+            match self.heap_get(name) {
                 Some(Object::String(s)) => Ok(s.to_string()),
                 _ => Err(InterpretError::Panic(PanicError::DeallocatedObject(
-                    self.chunk.get_line(ip),
+                    self.get_chunk().get_line(ip),
                 ))),
             }
         } else {
             Err(InterpretError::Panic(PanicError::NonObjectVariable(
-                self.chunk.get_line(ip),
+                self.get_chunk().get_line(ip),
             )))
         }
     }
 
     fn run_define_global(&mut self, operands: u8) -> Return {
-        let value = self.pop();
+        let value = self.stack_pop();
 
-        let ip = self.ip;
-        self.ip += 1;
+        let ip = self.get_ip();
+        self.increment_ip(1);
         let index = self.read_operand(operands);
 
-        let name_value = self.chunk.constants[index];
+        let name_value = self.get_chunk().constants[index];
         let name = self.get_variable_name(&name_value, ip)?;
 
         self.globals.insert(name, value);
@@ -368,21 +494,21 @@ impl VM<'_> {
     }
 
     fn run_get_global(&mut self, operands: u8) -> Return {
-        let ip = self.ip;
-        self.ip += 1;
+        let ip = self.get_ip();
+        self.increment_ip(1);
         let index = self.read_operand(operands);
 
-        let name_value = self.chunk.constants[index];
+        let name_value = self.get_chunk().constants[index];
         let name = self.get_variable_name(&name_value, ip)?;
 
         let value = self.globals.get(&name);
         match value {
             Some(v) => {
-                self.push(*v);
+                self.stack_push(*v);
             }
             None => {
                 return Err(InterpretError::Runtime(RuntimeError::NameError(
-                    self.chunk.get_line(ip),
+                    self.get_current_line(),
                     name,
                 )))
             }
@@ -392,13 +518,13 @@ impl VM<'_> {
     }
 
     fn run_set_global(&mut self, operands: u8) -> Return {
-        let value = *self.stack.last().unwrap_or(&Value::nil());
+        let value = self.stack_peek(0);
 
-        let ip = self.ip;
-        self.ip += 1;
+        let ip = self.get_ip();
+        self.increment_ip(1);
         let index = self.read_operand(operands);
 
-        let name_value = self.chunk.constants[index];
+        let name_value = self.get_chunk().constants[index];
         let name = self.get_variable_name(&name_value, ip)?;
 
         match self.globals.contains_key(&name) {
@@ -407,7 +533,7 @@ impl VM<'_> {
             }
             false => {
                 return Err(InterpretError::Runtime(RuntimeError::NameError(
-                    self.chunk.get_line(ip),
+                    self.get_current_line(),
                     name,
                 )));
             }
@@ -417,22 +543,17 @@ impl VM<'_> {
     }
 
     fn run_get_local(&mut self, operands: u8) -> Return {
-        self.ip += 1;
+        self.increment_ip(1);
         let index = self.read_operand(operands);
-        self.push(self.stack[index]);
+        self.stack_push(self.stack_get(index));
         Ok(())
     }
 
     fn run_set_local(&mut self, operands: u8) -> Return {
-        self.ip += 1;
+        self.increment_ip(1);
         let index = self.read_operand(operands);
-        self.stack[index] = *self.stack.last().unwrap_or(&Value::nil());
+        self.stack_set(index, self.stack_peek(0));
 
-        Ok(())
-    }
-
-    fn run_return(&mut self) -> Return {
-        self.ip += 1;
         Ok(())
     }
 }

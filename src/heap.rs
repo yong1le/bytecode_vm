@@ -27,6 +27,7 @@ impl Heap {
                 }
                 Some(s.clone())
             }
+            _ => None,
         };
 
         let index = self.objects.insert(obj);
@@ -51,6 +52,7 @@ impl Heap {
                 " [ {} ]",
                 match value {
                     Object::String(s) => s,
+                    Object::Function(f) => &f.name,
                 }
             )
         }

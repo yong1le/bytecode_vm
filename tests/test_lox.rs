@@ -95,19 +95,16 @@ fn test_for() {
 }
 
 #[test]
-#[ignore]
 fn test_function() {
     run_test_suite("function");
 }
 
 #[test]
-#[ignore]
 fn test_call() {
     run_test_suite("call");
 }
 
 #[test]
-#[ignore]
 fn test_return() {
     run_test_suite("return");
 }

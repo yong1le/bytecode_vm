@@ -243,15 +243,33 @@ pub enum OpCode {
     /// - After: `[value]`
     JumpIfFalse,
 
+    /// Jump a # of bytes backwards.
+    ///
+    /// ### Operand
+    /// - 2 bytes: the number of bytes to jump
+    ///
+    /// ### Stack effect
+    /// - Before: `[value]`
+    /// - After: `[value]`
     Loop,
 
-    /// Returns from the current function.
+    ///
+    ///
+    /// ### Operand
+    /// - 1 byte: the number of arguments this function has
+    ///
+    /// ### Stack effect
+    /// - Before: `[value]`
+    /// - After: `[value]`
+    Call,
+
+    /// Exits the function and returns the value on the top of the stack
     ///
     /// ### Operand
     /// - None
     ///
     /// ### Stack effect
-    /// - Before: `[]`
+    /// - Before: `[value]`
     /// - After: `[]`
     Return,
 
