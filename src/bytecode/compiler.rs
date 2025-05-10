@@ -122,6 +122,7 @@ impl StmtVisitor<Return> for Compiler<'_> {
 
             return Err(e);
         }
+        self.emit_constant_instruction(OpCode::LoadConstant, Value::nil(), id.line);
         self.emit_byte(OpCode::Return as u8, id.line);
 
         let new_function = std::mem::replace(&mut self.function, enclosing_function);

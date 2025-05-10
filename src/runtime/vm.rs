@@ -142,7 +142,15 @@ impl VM<'_> {
                     if callee.is_object() {
                         match self.heap_get(&callee) {
                             Some(Object::Function(f)) => {
-                                // FIXME: cloning a function is too expensive, cosnider using an arena
+                                if argc != f.arity as usize {
+                                    return Err(InterpretError::Runtime(
+                                        RuntimeError::FunctionCallArityMismatch(
+                                            self.get_current_line(),
+                                            f.arity as usize,
+                                            argc,
+                                        ),
+                                    ));
+                                }
                                 self.frames
                                     .push(Frame::new(f.clone(), self.stack.len() - argc - 1));
                             }

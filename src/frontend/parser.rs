@@ -149,6 +149,10 @@ impl<'a> Parser<'a> {
                     break;
                 }
                 _ => {
+                    if params.len() >= 255 {
+                        return Err(InterpretError::Syntax(SyntaxError::TooManyParams(t.line)));
+                    }
+
                     let param = self.consume(TokenType::Identifier)?;
                     params.push(param);
                     if self.consume(TokenType::Comma).is_err() {
@@ -547,6 +551,11 @@ impl<'a> Parser<'a> {
                             break;
                         }
                         _ => {
+                            if args.len() >= 255 {
+                                return Err(InterpretError::Syntax(SyntaxError::TooManyArgs(
+                                    t.line,
+                                )));
+                            }
                             args.push(self.expression()?);
                             if self.consume(TokenType::Comma).is_err() {
                                 break;
