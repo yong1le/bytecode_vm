@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use crate::object::Function;
 
-use super::VM;
+use super::{FRAME_MAX, VM};
 
 #[derive(Debug)]
 pub struct Frame {
@@ -24,20 +24,27 @@ impl Frame {
 }
 
 impl VM<'_> {
+    #[inline]
     pub(crate) fn get_frame(&self) -> &Frame {
         let i = self.frames.len() - 1;
         &self.frames[i]
     }
 
+    #[inline]
     pub(crate) fn get_frame_mut(&mut self) -> &mut Frame {
         let i = self.frames.len() - 1;
         &mut self.frames[i]
     }
 
+    #[inline]
     pub(crate) fn push_frame(&mut self, frame: Frame) {
+        if self.frames.len() > FRAME_MAX {
+            panic!("STACK OVERFLOW");
+        }
         self.frames.push(frame);
     }
 
+    #[inline]
     pub(crate) fn pop_frame(&mut self) -> Frame {
         self.frames.pop().unwrap()
     }

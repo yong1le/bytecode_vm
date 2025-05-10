@@ -77,18 +77,18 @@ impl<'a> VM<'a> {
 impl VM<'_> {
     pub fn run(&mut self, frame: Frame) -> Return {
         self.push_frame(frame);
-        self.stack.push(Value::number(0.0));
+        self.stack_push(Value::number(0.0));
 
         while self.get_ip() < self.get_code_length() {
             let ip = self.get_ip();
             let op = self.get_chunk().code[ip];
 
-            #[cfg(debug_assertions)]
-            {
-                self.stack_dump();
-                self.heap.dump();
-                self.get_chunk().disassemble_instruction(ip);
-            }
+            // #[cfg(debug_assertions)]
+            // {
+            //     self.stack_dump();
+            //     self.heap.dump();
+            //     self.get_chunk().disassemble_instruction(ip);
+            // }
 
             match OpCode::try_from(op) {
                 Ok(OpCode::LoadConstant) => self.run_constant(1)?,
@@ -105,15 +105,8 @@ impl VM<'_> {
                 Ok(OpCode::LessThan) => self.run_numeric_binary(OpCode::LessThan)?,
                 Ok(OpCode::GreaterThan) => self.run_numeric_binary(OpCode::GreaterThan)?,
                 Ok(OpCode::GreaterEqual) => self.run_numeric_binary(OpCode::GreaterEqual)?,
-                Ok(OpCode::Print) => {
-                    let constant = self.stack_pop();
-                    writeln!(self.writer, "{}", self.format_value(&constant)).unwrap();
-                    self.increment_ip(1);
-                }
-                Ok(OpCode::Pop) => {
-                    self.stack_pop();
-                    self.increment_ip(1);
-                }
+                Ok(OpCode::Print) => self.run_print()?,
+                Ok(OpCode::Pop) => self.run_pop()?,
                 Ok(OpCode::DefineGlobal) => self.run_define_global(1)?,
                 Ok(OpCode::DefineGlobalLong) => self.run_define_global(3)?,
                 Ok(OpCode::GetGlobal) => self.run_get_global(1)?,
@@ -124,74 +117,14 @@ impl VM<'_> {
                 Ok(OpCode::GetLocalLong) => self.run_get_local(3)?,
                 Ok(OpCode::SetLocal) => self.run_set_local(1)?,
                 Ok(OpCode::SetLocalLong) => self.run_set_local(3)?,
-                Ok(OpCode::JumpIfFalse) => {
-                    self.increment_ip(1);
-                    let jump_distance = self.read_operand(2);
-                    let condition = self.stack_peek(0);
-
-                    if !condition.is_truthy() {
-                        self.increment_ip(jump_distance);
-                    }
-                }
-                Ok(OpCode::Jump) => {
-                    self.increment_ip(1);
-                    let jump_distance = self.read_operand(2);
-                    self.increment_ip(jump_distance);
-                }
-                Ok(OpCode::Loop) => {
-                    self.increment_ip(1);
-                    let jump_distance = self.read_operand(2);
-                    self.decrement_ip(jump_distance);
-                }
-                Ok(OpCode::Call) => {
-                    self.increment_ip(1);
-                    let argc = self.read_operand(1);
-                    let callee = self.stack_peek(argc);
-                    if callee.is_object() {
-                        match self.heap_get(&callee) {
-                            Some(Object::Function(f)) => {
-                                if argc != f.arity as usize {
-                                    return Err(InterpretError::Runtime(
-                                        RuntimeError::FunctionCallArityMismatch(
-                                            self.get_current_line(),
-                                            f.arity as usize,
-                                            argc,
-                                        ),
-                                    ));
-                                }
-                                self.push_frame(Frame::new(f.clone(), self.stack.len() - argc - 1));
-                            }
-                            Some(_) => {
-                                return Err(InterpretError::Runtime(RuntimeError::InvalidCall(
-                                    self.get_current_line(),
-                                    self.format_value(&callee),
-                                )));
-                            }
-                            None => {
-                                return Err(InterpretError::Panic(PanicError::DeallocatedObject(
-                                    self.get_current_line(),
-                                )))
-                            }
-                        }
-                    } else {
-                        return Err(InterpretError::Runtime(RuntimeError::InvalidCall(
-                            self.get_current_line(),
-                            self.format_value(&callee),
-                        )));
-                    }
-                }
+                Ok(OpCode::JumpIfFalse) => self.run_jump_if()?,
+                Ok(OpCode::Jump) => self.run_jump()?,
+                Ok(OpCode::Loop) => self.run_loop()?,
+                Ok(OpCode::Call) => self.run_call()?,
                 Ok(OpCode::Return) => {
-                    self.increment_ip(1);
-                    let return_val = self.stack_pop();
-
-                    let popped_frame = self.pop_frame();
-                    if self.frames.is_empty() {
-                        self.stack_pop();
+                    if self.run_return()? {
                         return Ok(());
                     }
-
-                    self.stack.truncate(popped_frame.fp);
-                    self.stack_push(return_val);
                 }
                 Ok(OpCode::Nop) => self.increment_ip(1),
                 Err(_) => {
@@ -310,11 +243,7 @@ impl VM<'_> {
         let right = self.stack_pop();
         let left = self.stack_pop();
 
-        let result = if equality {
-            left.bits == right.bits
-        } else {
-            left.bits != right.bits
-        };
+        let result = (left == right) == equality;
 
         self.stack_push(Value::boolean(result));
         self.increment_ip(1);
@@ -374,6 +303,19 @@ impl VM<'_> {
                 self.get_chunk().get_line(ip),
             )))
         }
+    }
+
+    fn run_print(&mut self) -> Return {
+        let constant = self.stack_pop();
+        writeln!(self.writer, "{}", self.format_value(&constant)).unwrap();
+        self.increment_ip(1);
+        Ok(())
+    }
+
+    fn run_pop(&mut self) -> Return {
+        self.stack_pop();
+        self.increment_ip(1);
+        Ok(())
     }
 
     fn run_define_global(&mut self, operands: u8) -> Return {
@@ -451,5 +393,88 @@ impl VM<'_> {
         self.stack_set(index, self.stack_peek(0));
 
         Ok(())
+    }
+
+    fn run_jump_if(&mut self) -> Return {
+        self.increment_ip(1);
+        let jump_distance = self.read_operand(2);
+        let condition = self.stack_peek(0);
+
+        if !condition.is_truthy() {
+            self.increment_ip(jump_distance);
+        }
+
+        Ok(())
+    }
+
+    fn run_jump(&mut self) -> Return {
+        self.increment_ip(1);
+        let jump_distance = self.read_operand(2);
+        self.increment_ip(jump_distance);
+
+        Ok(())
+    }
+
+    fn run_loop(&mut self) -> Return {
+        self.increment_ip(1);
+        let jump_distance = self.read_operand(2);
+        self.decrement_ip(jump_distance);
+        Ok(())
+    }
+
+    fn run_call(&mut self) -> Return {
+        self.increment_ip(1);
+        let argc = self.read_operand(1);
+        let callee = self.stack_peek(argc);
+        if callee.is_object() {
+            match self.heap_get(&callee) {
+                Some(Object::Function(f)) => {
+                    if argc != f.arity as usize {
+                        return Err(InterpretError::Runtime(
+                            RuntimeError::FunctionCallArityMismatch(
+                                self.get_current_line(),
+                                f.arity as usize,
+                                argc,
+                            ),
+                        ));
+                    }
+                    self.push_frame(Frame::new(f.clone(), self.stack.len() - argc - 1));
+                }
+                Some(_) => {
+                    return Err(InterpretError::Runtime(RuntimeError::InvalidCall(
+                        self.get_current_line(),
+                        self.format_value(&callee),
+                    )));
+                }
+                None => {
+                    return Err(InterpretError::Panic(PanicError::DeallocatedObject(
+                        self.get_current_line(),
+                    )))
+                }
+            }
+        } else {
+            return Err(InterpretError::Runtime(RuntimeError::InvalidCall(
+                self.get_current_line(),
+                self.format_value(&callee),
+            )));
+        }
+
+        Ok(())
+    }
+
+    fn run_return(&mut self) -> Result<bool, InterpretError> {
+        self.increment_ip(1);
+        let return_val = self.stack_pop();
+
+        let new_stack_top = self.pop_frame().fp;
+
+        if self.frames.is_empty() {
+            self.stack_pop(); // pops the function pointer
+            return Ok(true);
+        }
+
+        self.stack.truncate(new_stack_top);
+        self.stack_push(return_val);
+        Ok(false)
     }
 }

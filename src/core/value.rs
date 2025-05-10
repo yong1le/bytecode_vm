@@ -25,6 +25,12 @@ impl std::fmt::Debug for Value {
     }
 }
 
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        self.bits == other.bits
+    }
+}
+
 impl Value {
     pub fn is_truthy(&self) -> bool {
         match self {
