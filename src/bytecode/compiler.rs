@@ -124,14 +124,19 @@ impl StmtVisitor<Return> for Compiler<'_> {
             self.define_local();
         }
 
-        if let Err(e) = self.visit_block(body) {
-            self.function = enclosing_function;
-            self.scope_depth = enclosing_depth;
-            self.locals = enclosing_locals;
-            self.function_type = enclosing_type;
+        for stmt in body {
+            if let Err(e) = self.compile_stmt(stmt) {
+                self.function = enclosing_function;
+                self.scope_depth = enclosing_depth;
+                self.locals = enclosing_locals;
+                self.function_type = enclosing_type;
 
-            return Err(e);
+                return Err(e);
+            }
         }
+
+        // No manual self.end_scope(), because it is faster for the vm to trauncate the stack
+
         self.emit_constant_instruction(OpCode::LoadConstant, Value::nil(), id.line);
         self.emit_byte(OpCode::Return as u8, id.line);
 
