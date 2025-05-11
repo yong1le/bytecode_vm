@@ -253,7 +253,8 @@ pub enum OpCode {
     /// - After: `[value]`
     Loop,
 
-    ///
+    /// Calls the function at the n'th position from the top
+    /// of the stack..
     ///
     /// ### Operand
     /// - 1 byte: the number of arguments this function has

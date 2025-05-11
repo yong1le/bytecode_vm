@@ -27,11 +27,11 @@ impl Heap {
         Value::object(index)
     }
 
-    pub fn push_str(&mut self, s: &str) -> Value {
-        if let Some(index) = self.intern_table.get(s) {
+    pub fn push_str(&mut self, s: String) -> Value {
+        let string: Rc<str> = Rc::from(s);
+        if let Some(index) = self.intern_table.get(&string) {
             Value::object(*index)
         } else {
-            let string: Rc<str> = Rc::from(s);
             let index = self.objects.insert(Object::String(string.clone()));
             self.intern_table.insert(string, index);
             Value::object(index)

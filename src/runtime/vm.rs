@@ -1,4 +1,4 @@
-use std::{io::Write, rc::Rc};
+use std::io::Write;
 
 use rustc_hash::FxHashMap;
 
@@ -23,11 +23,11 @@ impl<'a> VM<'a> {
         };
 
         // Push native functions
-        vm.insert_native_fn("clock", Object::Native(Box::new(Clock)));
+        vm.insert_native_fn("clock".to_string(), Object::Native(Box::new(Clock)));
         vm
     }
 
-    fn insert_native_fn(&mut self, name: &str, native: Object) {
+    fn insert_native_fn(&mut self, name: String, native: Object) {
         let name_idx = self.heap.push_str(name);
         let native_idx = self.heap.push(native);
         self.globals.insert(name_idx.bits, native_idx);
@@ -227,7 +227,7 @@ impl VM<'_> {
                 match (s1, s2) {
                     (Some(Object::String(s1)), Some(Object::String(s2))) => {
                         let s = format!("{s1}{s2}");
-                        let value = self.heap.push_str(&s);
+                        let value = self.heap.push_str(s);
                         self.stack_push(value);
                     }
                     _ => {

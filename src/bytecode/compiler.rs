@@ -37,7 +37,7 @@ impl StmtVisitor<Return> for Compiler<'_> {
         }
 
         if self.scope_depth == 0 {
-            let object = self.heap.push_str(&id.lexeme);
+            let object = self.heap.push_str(id.lexeme);
             self.emit_constant_instruction(OpCode::DefineGlobal, object, id.line);
         }
 
@@ -150,7 +150,7 @@ impl StmtVisitor<Return> for Compiler<'_> {
         self.locals = enclosing_locals;
 
         if self.scope_depth == 0 {
-            let function_name_idx = self.heap.push_str(&id.lexeme);
+            let function_name_idx = self.heap.push_str(id.lexeme);
             self.emit_constant_instruction(OpCode::DefineGlobal, function_name_idx, id.line);
         }
 
@@ -205,7 +205,7 @@ impl ExprVisitor<Return> for Compiler<'_> {
                 self.emit_constant_instruction(OpCode::LoadConstant, Value::nil(), token.line);
             }
             TokenType::String => {
-                let object_idx = self.heap.push_str(&token.lexeme.replace("\"", ""));
+                let object_idx = self.heap.push_str(token.lexeme.replace("\"", ""));
                 self.emit_constant_instruction(OpCode::LoadConstant, object_idx, token.line);
             }
             _ => {
@@ -279,7 +279,7 @@ impl ExprVisitor<Return> for Compiler<'_> {
                 self.emit_operand_instruction(OpCode::GetLocal, index, id.line);
             }
             None => {
-                let variable_idx = self.heap.push_str(&id.lexeme);
+                let variable_idx = self.heap.push_str(id.lexeme);
                 self.emit_constant_instruction(OpCode::GetGlobal, variable_idx, id.line);
             }
         }
@@ -295,7 +295,7 @@ impl ExprVisitor<Return> for Compiler<'_> {
                 self.emit_operand_instruction(OpCode::SetLocal, index, id.line);
             }
             None => {
-                let object = self.heap.push_str(&id.lexeme);
+                let object = self.heap.push_str(id.lexeme);
                 self.emit_constant_instruction(OpCode::SetGlobal, object, id.line);
             }
         }
