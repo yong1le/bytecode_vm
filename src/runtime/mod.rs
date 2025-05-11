@@ -16,9 +16,11 @@ const FRAME_MAX: usize = 64;
 const STACK_MAX: usize = 256;
 
 pub struct VM<'a> {
-    frames: Vec<Frame>,
+    frame: Frame,
     stack: Vec<Value>,
     heap: Heap,
     globals: FxHashMap<u64, Value>,
     writer: Box<dyn Write + 'a>,
+
+    frame_count: usize,
 }

@@ -9,5 +9,5 @@ use native::Native;
 pub enum Object {
     String(Rc<str>),
     Function(Rc<Function>),
-    Native(Box<dyn Native>),
+    Native(Rc<dyn Native>),
 }

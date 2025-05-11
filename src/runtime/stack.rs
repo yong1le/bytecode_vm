@@ -25,13 +25,13 @@ impl VM<'_> {
     /// Returns the `i`th element from the bottom of the stack
     #[inline]
     pub(crate) fn stack_get(&self, i: usize) -> Value {
-        let fp = self.get_frame().fp;
+        let fp = self.frame.fp;
         *self.stack.get(fp + i).unwrap_or(&Value::nil())
     }
 
     #[inline]
     pub(crate) fn stack_set(&mut self, i: usize, value: Value) {
-        let fp = self.get_frame().fp;
+        let fp = self.frame.fp;
         self.stack[fp + i] = value;
     }
 

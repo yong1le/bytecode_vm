@@ -11,6 +11,8 @@ pub struct Frame {
     /// Index into the VM's stack
     pub fp: usize,
     pub function: Rc<Function>,
+
+    pub caller: Option<Box<Frame>>,
 }
 
 impl Frame {
@@ -19,33 +21,16 @@ impl Frame {
             ip: 0,
             fp,
             function,
+            caller: None,
         }
     }
-}
 
-impl VM<'_> {
-    #[inline]
-    pub(crate) fn get_frame(&self) -> &Frame {
-        let i = self.frames.len() - 1;
-        &self.frames[i]
-    }
-
-    #[inline]
-    pub(crate) fn get_frame_mut(&mut self) -> &mut Frame {
-        let i = self.frames.len() - 1;
-        &mut self.frames[i]
-    }
-
-    #[inline]
-    pub(crate) fn push_frame(&mut self, frame: Frame) {
-        if self.frames.len() > FRAME_MAX {
-            panic!("STACK OVERFLOW");
+    pub fn with_caller(function: Rc<Function>, fp: usize, caller: Box<Frame>) -> Self {
+        Self {
+            ip: 0,
+            fp,
+            function,
+            caller: Some(caller),
         }
-        self.frames.push(frame);
-    }
-
-    #[inline]
-    pub(crate) fn pop_frame(&mut self) -> Frame {
-        self.frames.pop().unwrap()
     }
 }

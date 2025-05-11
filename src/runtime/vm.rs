@@ -1,4 +1,4 @@
-use std::io::Write;
+use std::{io::Write, rc::Rc};
 
 use rustc_hash::FxHashMap;
 
@@ -9,13 +9,61 @@ use crate::{
         errors::{CompileError, InterpretError, PanicError, RuntimeError},
         OpCode, Value,
     },
-    object::{native::Clock, Object},
+    object::{
+        native::{Clock, Sqrt},
+        Function, Object,
+    },
 };
+
+/// Compares if
+macro_rules! binary_op {
+    ($self:expr, $op:tt) => {
+        {
+            let right = $self.stack_pop();
+            let left = $self.stack_pop();
+
+            if !left.is_number() || !right.is_number() {
+                return Err(InterpretError::Runtime(RuntimeError::OperandMismatch(
+                    $self.get_current_line(),
+                    "numbers".to_string(),
+                )));
+            }
+
+            let result = Value::number(left.as_number() $op right.as_number());
+            $self.stack_push(result);
+            $self.increment_ip(1);
+            Ok(())
+        }
+    };
+}
+
+// For comparison operators that return boolean
+macro_rules! compare_op {
+    ($self:expr, $op:tt) => {
+        {
+            let right = $self.stack_pop();
+            let left = $self.stack_pop();
+
+            if !left.is_number() || !right.is_number() {
+                return Err(InterpretError::Runtime(RuntimeError::OperandMismatch(
+                    $self.get_current_line(),
+                    "numbers".to_string(),
+                )));
+            }
+
+            let result = Value::boolean(left.as_number() $op right.as_number());
+            $self.stack_push(result);
+            $self.increment_ip(1);
+            Ok(())
+        }
+    };
+}
 
 impl<'a> VM<'a> {
     pub fn new(writer: Box<dyn Write + 'a>) -> Self {
         let mut vm = Self {
-            frames: Vec::with_capacity(FRAME_MAX),
+            frame: Frame::new(Rc::new(Function::new("".to_string(), 0)), 0), // placeholder
+            frame_count: 1,
             stack: Vec::with_capacity(STACK_MAX),
             heap: Heap::new(),
             globals: FxHashMap::default(),
@@ -23,7 +71,8 @@ impl<'a> VM<'a> {
         };
 
         // Push native functions
-        vm.insert_native_fn("clock".to_string(), Object::Native(Box::new(Clock)));
+        vm.insert_native_fn("clock".to_string(), Object::Native(Rc::new(Clock)));
+        vm.insert_native_fn("sqrt".to_string(), Object::Native(Rc::new(Sqrt)));
         vm
     }
 
@@ -35,27 +84,27 @@ impl<'a> VM<'a> {
 
     #[inline]
     fn get_ip(&self) -> usize {
-        self.get_frame().ip
+        self.frame.ip
     }
 
     #[inline]
     fn increment_ip(&mut self, offset: usize) {
-        self.get_frame_mut().ip += offset;
+        self.frame.ip += offset;
     }
 
     #[inline]
     fn decrement_ip(&mut self, offset: usize) {
-        self.get_frame_mut().ip -= offset;
+        self.frame.ip -= offset;
     }
 
     #[inline]
     fn get_chunk(&self) -> &Chunk {
-        &self.get_frame().function.chunk
+        &self.frame.function.chunk
     }
 
     #[inline]
     fn get_code_length(&self) -> usize {
-        self.get_frame().function.chunk.code.len()
+        self.frame.function.chunk.code.len()
     }
 
     #[inline]
@@ -87,7 +136,7 @@ impl<'a> VM<'a> {
 // bytecode execution functions
 impl VM<'_> {
     pub fn run(&mut self, frame: Frame) -> Return {
-        self.push_frame(frame);
+        self.frame = frame;
         self.stack_push(Value::number(0.0));
 
         while self.get_ip() < self.get_code_length() {
@@ -107,15 +156,15 @@ impl VM<'_> {
                 Ok(OpCode::Negate) => self.run_negate()?,
                 Ok(OpCode::Not) => self.run_not()?,
                 Ok(OpCode::Add) => self.run_add()?,
-                Ok(OpCode::Subtract) => self.run_numeric_binary(OpCode::Subtract)?,
-                Ok(OpCode::Multiply) => self.run_numeric_binary(OpCode::Multiply)?,
-                Ok(OpCode::Divide) => self.run_numeric_binary(OpCode::Divide)?,
+                Ok(OpCode::Subtract) => binary_op!(self, -)?,
+                Ok(OpCode::Multiply) => binary_op!(self, *)?,
+                Ok(OpCode::Divide) => binary_op!(self, /)?,
                 Ok(OpCode::Equal) => self.run_equals(true)?,
                 Ok(OpCode::NotEqual) => self.run_equals(false)?,
-                Ok(OpCode::LessEqual) => self.run_numeric_binary(OpCode::LessEqual)?,
-                Ok(OpCode::LessThan) => self.run_numeric_binary(OpCode::LessThan)?,
-                Ok(OpCode::GreaterThan) => self.run_numeric_binary(OpCode::GreaterThan)?,
-                Ok(OpCode::GreaterEqual) => self.run_numeric_binary(OpCode::GreaterEqual)?,
+                Ok(OpCode::LessEqual) => compare_op!(self, <=)?,
+                Ok(OpCode::LessThan) => compare_op!(self, <)?,
+                Ok(OpCode::GreaterThan) => compare_op!(self, >)?,
+                Ok(OpCode::GreaterEqual) => compare_op!(self, >=)?,
                 Ok(OpCode::Print) => self.run_print()?,
                 Ok(OpCode::Pop) => self.run_pop()?,
                 Ok(OpCode::DefineGlobal) => self.run_define_global(1)?,
@@ -261,46 +310,6 @@ impl VM<'_> {
         Ok(())
     }
 
-    /// Binary operations that only work on numbers
-    fn run_numeric_binary(&mut self, op: OpCode) -> Return {
-        let right = self.stack_pop();
-        let left = self.stack_pop();
-        match (left, right) {
-            (n1, n2) if n1.is_number() && n2.is_number() => match op {
-                OpCode::Subtract => self.stack_push(Value::number(n1.as_number() - n2.as_number())),
-                OpCode::Multiply => self.stack_push(Value::number(n1.as_number() * n2.as_number())),
-                OpCode::Divide => self.stack_push(Value::number(n1.as_number() / n2.as_number())),
-                OpCode::LessThan => {
-                    self.stack_push(Value::boolean(n1.as_number() < n2.as_number()))
-                }
-                OpCode::LessEqual => {
-                    self.stack_push(Value::boolean(n1.as_number() <= n2.as_number()))
-                }
-                OpCode::GreaterThan => {
-                    self.stack_push(Value::boolean(n1.as_number() > n2.as_number()))
-                }
-                OpCode::GreaterEqual => {
-                    self.stack_push(Value::boolean(n1.as_number() >= n2.as_number()))
-                }
-                _ => {
-                    return Err(InterpretError::Panic(PanicError::General(
-                        self.get_current_line(),
-                        format!("Invalid OP_CODE: '{:?}'", op),
-                    )))
-                }
-            },
-            _ => {
-                return Err(InterpretError::Runtime(RuntimeError::OperandMismatch(
-                    self.get_current_line(),
-                    "numbers".to_string(),
-                )))
-            }
-        }
-
-        self.increment_ip(1);
-        Ok(())
-    }
-
     fn get_variable_name(&mut self, name: &Value, ip: usize) -> Result<String, InterpretError> {
         if name.is_object() {
             match self.heap_get(name) {
@@ -436,10 +445,16 @@ impl VM<'_> {
     fn run_call(&mut self) -> Return {
         self.increment_ip(1);
         let argc = self.read_operand(1);
+
+        if self.frame_count >= FRAME_MAX {
+            panic!("out of frames")
+        }
+
         let callee = self.stack_peek(argc);
         if callee.is_object() {
-            match self.heap_get(&callee) {
+            match &self.heap_get(&callee) {
                 Some(Object::Function(f)) => {
+                    let function = f.clone();
                     if argc != f.arity as usize {
                         return Err(InterpretError::Runtime(
                             RuntimeError::FunctionCallArityMismatch(
@@ -449,9 +464,18 @@ impl VM<'_> {
                             ),
                         ));
                     }
-                    self.push_frame(Frame::new(f.clone(), self.stack.len() - argc - 1));
+
+                    let caller = std::mem::replace(
+                        &mut self.frame,
+                        Frame::new(function, self.stack.len() - argc - 1),
+                    );
+
+                    self.frame.caller = Some(Box::new(caller));
+                    self.frame_count += 1;
                 }
                 Some(Object::Native(n)) => {
+                    let native = n.clone();
+
                     if argc != n.arity() as usize {
                         return Err(InterpretError::Runtime(
                             RuntimeError::FunctionCallArityMismatch(
@@ -461,8 +485,11 @@ impl VM<'_> {
                             ),
                         ));
                     }
-                    let result = n.call(vec![]);
-                    self.stack_set(self.stack.len() - 1, result);
+
+                    let args = self.stack.split_off(self.stack.len() - argc);
+                    self.stack_pop(); // pop function object
+                    let result = native.call(args).map_err(InterpretError::Runtime)?;
+                    self.stack_push(result);
                 }
                 Some(_) => {
                     return Err(InterpretError::Runtime(RuntimeError::InvalidCall(
@@ -490,11 +517,18 @@ impl VM<'_> {
         self.increment_ip(1);
         let return_val = self.stack_pop();
 
-        let new_stack_top = self.pop_frame().fp;
+        let new_stack_top = self.frame.fp;
+        let caller = self.frame.caller.take();
 
-        if self.frames.is_empty() {
-            self.stack_pop(); // pops the function pointer
-            return Ok(true);
+        self.frame_count -= 1;
+        match caller {
+            Some(caller) => {
+                self.frame = *caller;
+            }
+            None => {
+                self.stack_pop(); // pops the function pointer
+                return Ok(true);
+            }
         }
 
         self.stack.truncate(new_stack_top);
