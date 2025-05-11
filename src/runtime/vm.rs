@@ -1,4 +1,4 @@
-use std::io::Write;
+use std::{io::Write, rc::Rc};
 
 use rustc_hash::FxHashMap;
 
@@ -14,13 +14,23 @@ use crate::{
 
 impl<'a> VM<'a> {
     pub fn new(writer: Box<dyn Write + 'a>) -> Self {
-        Self {
+        let mut vm = Self {
             frames: Vec::with_capacity(FRAME_MAX),
             stack: Vec::with_capacity(STACK_MAX),
             heap: Heap::new(),
             globals: FxHashMap::default(),
             writer,
-        }
+        };
+
+        // Push native functions
+        vm.insert_native_fn("clock", Object::Native(Box::new(Clock)));
+        vm
+    }
+
+    fn insert_native_fn(&mut self, name: &str, native: Object) {
+        let name_idx = self.heap.push_str(name);
+        let native_idx = self.heap.push(native);
+        self.globals.insert(name_idx.bits, native_idx);
     }
 
     #[inline]
@@ -59,7 +69,7 @@ impl<'a> VM<'a> {
             match self.heap_get(value) {
                 Some(Object::String(s)) => s.to_string(),
                 Some(Object::Function(f)) => format!("<fn {}>", f.name),
-                Some(Object::Native(_)) => "<native fn>".to_string(),
+                Some(Object::Native(f)) => format!("<fn {}>", f.name()),
                 None => "nil".to_string(),
             }
         } else if value.is_number() {
@@ -76,29 +86,20 @@ impl<'a> VM<'a> {
 
 // bytecode execution functions
 impl VM<'_> {
-    fn insert_native_fn(&mut self, name: &str, native: Object) {
-        let name_idx = self.heap.push(Object::String(name.to_owned()));
-        let native_idx = self.heap.push(native);
-        self.globals.insert(name_idx.bits, native_idx);
-    }
-
     pub fn run(&mut self, frame: Frame) -> Return {
         self.push_frame(frame);
         self.stack_push(Value::number(0.0));
-
-        // Push native functions
-        self.insert_native_fn("clock", Object::Native(Box::new(Clock)));
 
         while self.get_ip() < self.get_code_length() {
             let ip = self.get_ip();
             let op = self.get_chunk().code[ip];
 
-            // #[cfg(debug_assertions)]
-            // {
-            //     self.stack_dump();
-            //     self.heap.dump();
-            //     self.get_chunk().disassemble_instruction(ip);
-            // }
+            #[cfg(debug_assertions)]
+            {
+                self.stack_dump();
+                self.heap.dump();
+                self.get_chunk().disassemble_instruction(ip);
+            }
 
             match OpCode::try_from(op) {
                 Ok(OpCode::LoadConstant) => self.run_constant(1)?,
@@ -226,7 +227,7 @@ impl VM<'_> {
                 match (s1, s2) {
                     (Some(Object::String(s1)), Some(Object::String(s2))) => {
                         let s = format!("{s1}{s2}");
-                        let value = self.heap_alloc(Object::String(s));
+                        let value = self.heap.push_str(&s);
                         self.stack_push(value);
                     }
                     _ => {
@@ -461,7 +462,7 @@ impl VM<'_> {
                         ));
                     }
                     let result = n.call(vec![]);
-                    self.stack_push(result);
+                    self.stack_set(self.stack.len() - 1, result);
                 }
                 Some(_) => {
                     return Err(InterpretError::Runtime(RuntimeError::InvalidCall(

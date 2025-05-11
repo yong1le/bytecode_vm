@@ -7,7 +7,7 @@ pub use functions::Function;
 use native::Native;
 
 pub enum Object {
-    String(String),
+    String(Rc<str>),
     Function(Rc<Function>),
     Native(Box<dyn Native>),
 }
