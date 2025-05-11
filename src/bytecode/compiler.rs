@@ -106,8 +106,10 @@ impl StmtVisitor<Return> for Compiler<'_> {
             Function::new(id.lexeme.clone(), params.len() as u8),
         );
         let enclosing_depth = std::mem::replace(&mut self.scope_depth, 1);
-        let enclosing_locals =
-            std::mem::replace(&mut self.locals, vec![Local::new("".to_string(), 1)]);
+        let enclosing_locals = std::mem::take(&mut self.locals);
+
+        self.declare_local(id.lexeme.clone(), id.line)?;
+        self.define_local();
 
         let enclosing_type = self.function_type;
         self.function_type = FunctionType::Function;
