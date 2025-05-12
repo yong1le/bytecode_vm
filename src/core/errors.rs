@@ -81,6 +81,8 @@ pub enum RuntimeError {
     InvalidPropertyAccess(u32, String, String),
     #[error("[line {0}] Error: '{1}' attempting to inherit from non-class value '{2}'.")]
     InheritFromNonClass(u32, String, String),
+    #[error("[line {0} Error: Stack overflow.")]
+    StackOverflow(u32),
 }
 
 #[derive(Debug, Error, Clone)]

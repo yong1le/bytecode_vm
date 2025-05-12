@@ -11,7 +11,7 @@ use crate::{
     },
     object::{
         native::{Clock, Sqrt},
-        Function, Object,
+        Closure, Function, Object,
     },
 };
 
@@ -62,7 +62,10 @@ macro_rules! compare_op {
 impl<'a> VM<'a> {
     pub fn new(writer: Box<dyn Write + 'a>) -> Self {
         let mut vm = Self {
-            frame: Frame::new(Rc::new(Function::new("".to_string(), 0)), 0), // placeholder
+            frame: Frame::new(
+                Rc::new(Closure::new(Rc::new(Function::new("".to_string(), 0)))),
+                0,
+            ),
             frame_count: 1,
             stack: Vec::with_capacity(STACK_MAX),
             heap: Heap::new(),
@@ -99,12 +102,12 @@ impl<'a> VM<'a> {
 
     #[inline]
     fn get_chunk(&self) -> &Chunk {
-        &self.frame.function.chunk
+        &self.frame.closure.function.chunk
     }
 
     #[inline]
     fn get_code_length(&self) -> usize {
-        self.frame.function.chunk.code.len()
+        self.frame.closure.function.chunk.code.len()
     }
 
     #[inline]
@@ -116,9 +119,7 @@ impl<'a> VM<'a> {
     pub(crate) fn format_value(&self, value: &Value) -> String {
         if value.is_object() {
             match self.heap_get(value) {
-                Some(Object::String(s)) => s.to_string(),
-                Some(Object::Function(f)) => format!("<fn {}>", f.name),
-                Some(Object::Native(f)) => format!("<fn {}>", f.name()),
+                Some(object) => self.heap.format_value(object),
                 None => "nil".to_string(),
             }
         } else if value.is_number() {
@@ -145,9 +146,11 @@ impl VM<'_> {
 
             #[cfg(debug_assertions)]
             {
+                eprint!("\n\x1b[38;5;248m");
                 self.stack_dump();
                 self.heap.dump();
                 self.get_chunk().disassemble_instruction(ip);
+                eprint!("\x1b[0m");
             }
 
             match OpCode::try_from(op) {
@@ -181,6 +184,8 @@ impl VM<'_> {
                 Ok(OpCode::Jump) => self.run_jump()?,
                 Ok(OpCode::Loop) => self.run_loop()?,
                 Ok(OpCode::Call) => self.run_call()?,
+                Ok(OpCode::Closure) => self.run_closure(1)?,
+                Ok(OpCode::ClosureLong) => self.run_closure(3)?,
                 Ok(OpCode::Return) => {
                     if self.run_return()? {
                         return Ok(());
@@ -447,19 +452,21 @@ impl VM<'_> {
         let argc = self.read_operand(1);
 
         if self.frame_count >= FRAME_MAX {
-            panic!("out of frames")
+            return Err(InterpretError::Runtime(RuntimeError::StackOverflow(
+                self.get_current_line(),
+            )));
         }
 
         let callee = self.stack_peek(argc);
         if callee.is_object() {
             match &self.heap_get(&callee) {
-                Some(Object::Function(f)) => {
-                    let function = f.clone();
-                    if argc != f.arity as usize {
+                Some(Object::Closure(c)) => {
+                    let closure = c.clone();
+                    if argc != closure.function.arity as usize {
                         return Err(InterpretError::Runtime(
                             RuntimeError::FunctionCallArityMismatch(
                                 self.get_current_line(),
-                                f.arity as usize,
+                                closure.function.arity as usize,
                                 argc,
                             ),
                         ));
@@ -467,7 +474,7 @@ impl VM<'_> {
 
                     let caller = std::mem::replace(
                         &mut self.frame,
-                        Frame::new(function, self.stack.len() - argc - 1),
+                        Frame::new(closure, self.stack.len() - argc - 1),
                     );
 
                     self.frame.caller = Some(Box::new(caller));
@@ -534,5 +541,20 @@ impl VM<'_> {
         self.stack.truncate(new_stack_top);
         self.stack_push(return_val);
         Ok(false)
+    }
+
+    fn run_closure(&mut self, operands: u8) -> Return {
+        self.increment_ip(1);
+        let function_idx = self.read_operand(operands);
+
+        if let Some(Object::Function(function)) = self.heap_get(&Value::object(function_idx)) {
+            let closure = Closure::new(function.clone());
+            let closure_idx = self.heap.push(Object::Closure(Rc::new(closure)));
+            self.stack_push(closure_idx);
+        } else {
+            panic!("PANIC IN RUN CLOSURE")
+        }
+
+        Ok(())
     }
 }

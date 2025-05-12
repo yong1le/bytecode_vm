@@ -1,35 +1,34 @@
 use std::rc::Rc;
 
-use crate::object::Function;
+use crate::object::Closure;
 
-use super::{FRAME_MAX, VM};
-
+// TODO: Allocate frames from continuous memory
 #[derive(Debug)]
 pub struct Frame {
     /// Index into a chunk's code
     pub ip: usize,
     /// Index into the VM's stack
     pub fp: usize,
-    pub function: Rc<Function>,
+    pub closure: Rc<Closure>,
 
     pub caller: Option<Box<Frame>>,
 }
 
 impl Frame {
-    pub fn new(function: Rc<Function>, fp: usize) -> Self {
+    pub fn new(closure: Rc<Closure>, fp: usize) -> Self {
         Self {
             ip: 0,
             fp,
-            function,
+            closure,
             caller: None,
         }
     }
 
-    pub fn with_caller(function: Rc<Function>, fp: usize, caller: Box<Frame>) -> Self {
+    pub fn with_caller(closure: Rc<Closure>, fp: usize, caller: Box<Frame>) -> Self {
         Self {
             ip: 0,
             fp,
-            function,
+            closure,
             caller: Some(caller),
         }
     }

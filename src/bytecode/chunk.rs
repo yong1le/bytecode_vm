@@ -52,7 +52,7 @@ impl Chunk {
     }
 
     pub fn disassemble(&self, name: &str) {
-        println!("== {} ==", name);
+        eprintln!("== {} ==", name);
         let mut offset = 0;
 
         let len = self.code.len();
@@ -65,7 +65,7 @@ impl Chunk {
         let instruction = self.code[offset];
         let line = self.get_line(offset);
 
-        print!(
+        eprint!(
             "{:04} {}",
             offset,
             if offset > 0 && line == self.get_line(offset - 1) {
@@ -85,10 +85,10 @@ impl Chunk {
                 | OpCode::DefineGlobalLong
                 | OpCode::GetGlobalLong
                 | OpCode::SetGlobalLong => self.disassemble_constant_long_instruction(op, offset),
-                OpCode::GetLocal | OpCode::SetLocal | OpCode::Call => {
+                OpCode::GetLocal | OpCode::SetLocal | OpCode::Call | OpCode::Closure => {
                     self.disassemble_num_instruction(op, offset)
                 }
-                OpCode::GetLocalLong | OpCode::SetLocalLong => {
+                OpCode::GetLocalLong | OpCode::SetLocalLong | OpCode::ClosureLong => {
                     self.disassemble_num_long_instruction(op, offset)
                 }
                 OpCode::Jump | OpCode::JumpIfFalse | OpCode::Loop => {
@@ -97,7 +97,7 @@ impl Chunk {
                 _ => self.disassemble_simple_instruction(op),
             },
             Err(_) => {
-                println!("Invalid Opcode '{}'", instruction);
+                eprintln!("Invalid Opcode '{}'", instruction);
                 1
             }
         };
@@ -123,39 +123,39 @@ impl Chunk {
     }
 
     fn disassemble_simple_instruction(&self, op: OpCode) -> usize {
-        println!("{:?}", op);
+        eprintln!("{:?}", op);
         1
     }
 
     fn disassemble_constant_instruction(&self, op: OpCode, offset: usize) -> usize {
         let constant_idx = self.read_operand(1, offset);
         let constant = self.constants[constant_idx];
-        println!("{:<16?} {:>4} '{:?}'", op, constant_idx, constant);
+        eprintln!("{:<16?} {:>4} '{:?}'", op, constant_idx, constant);
         2
     }
 
     fn disassemble_constant_long_instruction(&self, op: OpCode, offset: usize) -> usize {
         let constant_idx = self.read_operand(3, offset);
         let constant = self.constants.get(constant_idx).unwrap();
-        println!("{:<16?} {:>4} '{:?}'", op, constant_idx, constant);
+        eprintln!("{:<16?} {:>4} '{:?}'", op, constant_idx, constant);
         4
     }
 
     fn disassemble_num_instruction(&self, op: OpCode, offset: usize) -> usize {
         let constant_idx = self.read_operand(1, offset);
-        println!("{:<16?} {:>4}", op, constant_idx);
+        eprintln!("{:<16?} {:>4}", op, constant_idx);
         2
     }
 
     fn disassemble_num_mid_instruction(&self, op: OpCode, offset: usize) -> usize {
         let constant_idx = self.read_operand(2, offset);
-        println!("{:<16?} {:>4}", op, constant_idx);
+        eprintln!("{:<16?} {:>4}", op, constant_idx);
         3
     }
 
     fn disassemble_num_long_instruction(&self, op: OpCode, offset: usize) -> usize {
         let constant_idx = self.read_operand(3, offset);
-        println!("{:<16?} {:>4}", op, constant_idx);
+        eprintln!("{:<16?} {:>4}", op, constant_idx);
         4
     }
 }

@@ -13,7 +13,7 @@ use crate::{
     object::{Function, Object},
 };
 
-use super::{locals::Local, Compiler, FunctionType, Return};
+use super::{Compiler, FunctionType, Return};
 
 impl StmtVisitor<Return> for Compiler<'_> {
     fn visit_print(&mut self, token: Token, expr: Expr) -> Return {
@@ -143,12 +143,13 @@ impl StmtVisitor<Return> for Compiler<'_> {
         self.emit_byte(OpCode::Return as u8, id.line);
 
         let new_function = std::mem::replace(&mut self.function, enclosing_function);
-        let index = self.heap.push(Object::Function(Rc::new(new_function)));
-        self.emit_constant_instruction(OpCode::LoadConstant, index, id.line);
+        let function_index = self.heap.push(Object::Function(Rc::new(new_function)));
 
         self.scope_depth = enclosing_depth;
         self.locals = enclosing_locals;
+        // self.emit_constant_instruction(OpCode::LoadConstant, function_index, id.line);
 
+        self.emit_operand_instruction(OpCode::Closure, function_index.as_object(), id.line);
         if self.scope_depth == 0 {
             let function_name_idx = self.heap.push_str(id.lexeme);
             self.emit_constant_instruction(OpCode::DefineGlobal, function_name_idx, id.line);

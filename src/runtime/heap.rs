@@ -47,18 +47,20 @@ impl Heap {
     }
 
     pub fn dump(&self) {
-        print!("HEAP      ");
+        eprint!("HEAP     ");
         for (_, value) in &self.objects {
-            print!(
-                " [ {} ]",
-                match value {
-                    Object::String(s) => s.to_string(),
-                    Object::Function(f) => format!("<fn {}>", f.name),
-                    Object::Native(f) => format!("<fn {}>", f.name()),
-                }
-            )
+            eprint!(" [ {} ]", self.format_value(value))
         }
-        println!();
+        eprintln!();
+    }
+
+    pub fn format_value(&self, value: &Object) -> String {
+        match value {
+            Object::String(s) => s.to_string(),
+            Object::Function(f) => format!("<fn {}>", f.name),
+            Object::Native(f) => format!("<fn {}>", f.name()),
+            Object::Closure(f) => format!("<closure {}>", f.function.name),
+        }
     }
 }
 

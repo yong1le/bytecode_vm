@@ -274,6 +274,19 @@ pub enum OpCode {
     /// - After: `[]`
     Return,
 
+    /// Crates a closure from a function and stuffs it into the heap
+    ///
+    /// ### Operand
+    /// - 1 byte: index into the heap of where function is located
+    /// - 3 bytes: index into the heap of where function is located
+    ///
+    /// ### Stack effect
+    /// - Before: `[]`
+    /// - After: `[value]`
+    Closure,
+    /// Long version of  [`OpCode::Closure`]
+    ClosureLong,
+
     /// No operation, discards the byte.
     Nop,
 }
@@ -286,6 +299,7 @@ impl OpCode {
             OpCode::GetGlobal => OpCode::GetGlobalLong,
             OpCode::GetLocal => OpCode::GetLocalLong,
             OpCode::SetLocal => OpCode::SetLocalLong,
+            OpCode::Closure => OpCode::ClosureLong,
             _ => self,
         }
     }

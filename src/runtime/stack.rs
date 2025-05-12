@@ -37,10 +37,10 @@ impl VM<'_> {
 
     /// Prints a dump of the stack
     pub(crate) fn stack_dump(&self) {
-        print!("STACK     ");
+        eprint!("STACK     ");
         for value in &self.stack {
-            print!("[ {} ]", self.format_value(value))
+            eprint!("[ {} ]", self.format_value(value))
         }
-        println!();
+        eprintln!();
     }
 }

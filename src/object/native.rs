@@ -23,7 +23,7 @@ impl Native for Clock {
             .duration_since(UNIX_EPOCH)
             .expect("Time went backwards.");
 
-        Ok(Value::number(time.as_secs_f64().trunc()))
+        Ok(Value::number(time.as_secs_f64()))
     }
 }
 
