@@ -10,9 +10,9 @@ use crate::{
     core::{errors::InterpretError, OpCode},
     frontend::Parser,
     object::Function,
-    runtime::Heap,
+    runtime::{Heap, FRAME_MAX},
 };
-use locals::Local;
+use locals::{CompilerUpvalue, Local};
 
 type Return = Result<(), InterpretError>;
 
@@ -27,21 +27,25 @@ pub struct Compiler<'a> {
     statements: Parser<'a>,
     function_type: FunctionType,
     function: Function,
-    heap: &'a mut Heap,
+    heap: Option<&'a mut Heap>,
     /// The depth of nested scopes the compiler is currently in, 0 is the global scope
     scope_depth: usize,
     locals: Vec<Local>,
+    upvalues: Vec<CompilerUpvalue>,
+    enclosing: Option<*mut Self>,
 }
 
 impl<'a> Compiler<'a> {
     pub fn new(statements: Parser<'a>, heap: &'a mut Heap) -> Self {
         Compiler {
             statements,
-            heap,
+            heap: Some(heap),
             function: Function::new("main".to_string(), 0),
             scope_depth: 0,
             locals: vec![Local::new("".to_string(), 0)],
             function_type: FunctionType::Main,
+            upvalues: Vec::with_capacity(FRAME_MAX),
+            enclosing: None,
         }
     }
 

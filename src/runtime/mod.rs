@@ -12,8 +12,8 @@ use std::io::Write;
 
 type Return = Result<(), InterpretError>;
 
-const FRAME_MAX: usize = 64;
-const STACK_MAX: usize = 256;
+pub const FRAME_MAX: usize = 64;
+pub const STACK_MAX: usize = 256;
 
 pub struct VM<'a> {
     frame: Frame,

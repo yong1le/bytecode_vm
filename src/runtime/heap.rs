@@ -46,6 +46,17 @@ impl Heap {
         self.objects.get(value.as_object())
     }
 
+    pub(crate) fn set(&mut self, index: usize, value: Value) {
+        match &self.objects[index] {
+            Object::UpValue(v) => {
+                *v.borrow_mut() = value;
+            }
+            _ => {
+                panic!("trying to mutate immutable value")
+            }
+        }
+    }
+
     pub fn dump(&self) {
         eprint!("HEAP     ");
         for (_, value) in &self.objects {
@@ -59,7 +70,8 @@ impl Heap {
             Object::String(s) => s.to_string(),
             Object::Function(f) => format!("<fn {}>", f.name),
             Object::Native(f) => format!("<fn {}>", f.name()),
-            Object::Closure(f) => format!("<closure {}>", f.function.name),
+            Object::Closure(f) => format!("<fn {}>", f.function.name),
+            Object::UpValue(v) => "<upvalue>".to_string(),
         }
     }
 }

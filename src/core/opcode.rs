@@ -223,6 +223,10 @@ pub enum OpCode {
     /// Long version of  [`OpCode::SetLocal`]
     SetLocalLong,
 
+    /// Index into upvalue array, cannot have more than 256 upvalues
+    GetUpvalue,
+    SetUpvalue,
+
     /// Jump a # of bytes.
     ///
     /// ### Operand

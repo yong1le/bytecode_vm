@@ -1,4 +1,7 @@
-use std::rc::Rc;
+use std::{
+    mem::{self, MaybeUninit},
+    rc::Rc,
+};
 
 use crate::{
     ast::{
@@ -10,6 +13,7 @@ use crate::{
         token::{Token, TokenType},
         OpCode, Value,
     },
+    frontend::{Parser, Scanner},
     object::{Function, Object},
 };
 
@@ -37,7 +41,7 @@ impl StmtVisitor<Return> for Compiler<'_> {
         }
 
         if self.scope_depth == 0 {
-            let object = self.heap.push_str(id.lexeme);
+            let object = self.heap.as_mut().unwrap().push_str(id.lexeme);
             self.emit_constant_instruction(OpCode::DefineGlobal, object, id.line);
         }
 
@@ -101,57 +105,62 @@ impl StmtVisitor<Return> for Compiler<'_> {
         self.declare_local(id.lexeme.clone(), id.line)?;
         self.define_local();
 
-        let enclosing_function = std::mem::replace(
-            &mut self.function,
-            Function::new(id.lexeme.clone(), params.len() as u8),
-        );
-        let enclosing_depth = std::mem::replace(&mut self.scope_depth, 1);
-        let enclosing_locals = std::mem::take(&mut self.locals);
+        // Now, self.heap is None, and if we try to access it, we will get panic error. In general,
+        // any compiler code should not access enclosing.heap
+        let heap = self.heap.take();
+        let mut new_compiler = Compiler {
+            statements: Parser::new(Scanner::new("")), // placeholder, never actually used
+            heap,
+            function: Function::new(id.lexeme.clone(), params.len() as u8),
+            scope_depth: 1,
+            locals: vec![],
+            function_type: FunctionType::Function,
+            upvalues: Vec::new(),
+            enclosing: Some(self as *mut Self), // should usually be safe, since we create and
+        };
 
-        self.declare_local(id.lexeme.clone(), id.line)?;
-        self.define_local();
-
-        let enclosing_type = self.function_type;
-        self.function_type = FunctionType::Function;
-
-        for param in params {
-            if let Err(e) = self.declare_local(param.lexeme, param.line) {
-                self.function = enclosing_function;
-                self.scope_depth = enclosing_depth;
-                self.locals = enclosing_locals;
-                self.function_type = enclosing_type;
-
-                return Err(e);
-            };
-            self.define_local();
-        }
-
-        for stmt in body {
-            if let Err(e) = self.compile_stmt(stmt) {
-                self.function = enclosing_function;
-                self.scope_depth = enclosing_depth;
-                self.locals = enclosing_locals;
-                self.function_type = enclosing_type;
-
-                return Err(e);
+        // This block is reserved for operations that new_compiler does, we should never touch
+        // `self` in this block manually
+        {
+            // [ <fn> ] [ arg1 ] [ arg2 ]
+            new_compiler.declare_local(id.lexeme.clone(), id.line)?;
+            new_compiler.define_local();
+            for param in params {
+                new_compiler.declare_local(param.lexeme, param.line)?;
+                new_compiler.define_local();
             }
+            for stmt in body {
+                new_compiler.compile_stmt(stmt)?;
+            }
+
+            // Default 'return nil'. Frame exists at first return, so it will not run if there
+            // is already a return in the function
+            new_compiler.emit_constant_instruction(OpCode::LoadConstant, Value::nil(), id.line);
+            new_compiler.emit_byte(OpCode::Return as u8, id.line);
         }
 
-        // No manual self.end_scope(), because it is faster for the vm to trauncate the stack
+        self.heap = new_compiler.heap.take(); // take back our original heap
+        let upvalues = mem::take(&mut new_compiler.upvalues);
+        let new_function = new_compiler.function; // get the compiled function
 
-        self.emit_constant_instruction(OpCode::LoadConstant, Value::nil(), id.line);
-        self.emit_byte(OpCode::Return as u8, id.line);
+        if upvalues.len() > 256 {
+            panic!("Cannot have more than 256 upvalues in a closure.")
+        }
 
-        let new_function = std::mem::replace(&mut self.function, enclosing_function);
-        let function_index = self.heap.push(Object::Function(Rc::new(new_function)));
+        let function_idx = self
+            .heap
+            .as_mut()
+            .unwrap()
+            .push(Object::Function(Rc::new(new_function)));
+        self.emit_operand_instruction(OpCode::Closure, function_idx.as_object(), id.line);
 
-        self.scope_depth = enclosing_depth;
-        self.locals = enclosing_locals;
-        // self.emit_constant_instruction(OpCode::LoadConstant, function_index, id.line);
+        for upvalue in upvalues {
+            self.emit_byte(if upvalue.is_local { 1 } else { 0 } as u8, id.line);
+            self.emit_byte(upvalue.index as u8, id.line);
+        }
 
-        self.emit_operand_instruction(OpCode::Closure, function_index.as_object(), id.line);
         if self.scope_depth == 0 {
-            let function_name_idx = self.heap.push_str(id.lexeme);
+            let function_name_idx = self.heap.as_mut().unwrap().push_str(id.lexeme);
             self.emit_constant_instruction(OpCode::DefineGlobal, function_name_idx, id.line);
         }
 
@@ -206,7 +215,11 @@ impl ExprVisitor<Return> for Compiler<'_> {
                 self.emit_constant_instruction(OpCode::LoadConstant, Value::nil(), token.line);
             }
             TokenType::String => {
-                let object_idx = self.heap.push_str(token.lexeme.replace("\"", ""));
+                let object_idx = self
+                    .heap
+                    .as_mut()
+                    .unwrap()
+                    .push_str(token.lexeme.replace("\"", ""));
                 self.emit_constant_instruction(OpCode::LoadConstant, object_idx, token.line);
             }
             _ => {
@@ -275,14 +288,13 @@ impl ExprVisitor<Return> for Compiler<'_> {
     }
 
     fn visit_variable(&mut self, id: Token) -> Return {
-        match self.resolve_local(&id.lexeme, id.line)? {
-            Some(index) => {
-                self.emit_operand_instruction(OpCode::GetLocal, index, id.line);
-            }
-            None => {
-                let variable_idx = self.heap.push_str(id.lexeme);
-                self.emit_constant_instruction(OpCode::GetGlobal, variable_idx, id.line);
-            }
+        if let Some(index) = self.resolve_local(&id.lexeme, id.line)? {
+            self.emit_operand_instruction(OpCode::GetLocal, index, id.line);
+        } else if let Some(index) = self.resolve_upvalue(&id.lexeme, id.line)? {
+            self.emit_operand_instruction(OpCode::GetUpvalue, index, id.line);
+        } else {
+            let variable_idx = self.heap.as_mut().unwrap().push_str(id.lexeme);
+            self.emit_constant_instruction(OpCode::GetGlobal, variable_idx, id.line);
         }
 
         Ok(())
@@ -291,14 +303,13 @@ impl ExprVisitor<Return> for Compiler<'_> {
     fn visit_assignment(&mut self, id: Token, assignment: Expr) -> Return {
         self.compile_expr(assignment)?;
 
-        match self.resolve_local(&id.lexeme, id.line)? {
-            Some(index) => {
-                self.emit_operand_instruction(OpCode::SetLocal, index, id.line);
-            }
-            None => {
-                let object = self.heap.push_str(id.lexeme);
-                self.emit_constant_instruction(OpCode::SetGlobal, object, id.line);
-            }
+        if let Some(index) = self.resolve_local(&id.lexeme, id.line)? {
+            self.emit_operand_instruction(OpCode::SetLocal, index, id.line);
+        } else if let Some(index) = self.resolve_upvalue(&id.lexeme, id.line)? {
+            self.emit_operand_instruction(OpCode::SetUpvalue, index, id.line);
+        } else {
+            let object = self.heap.as_mut().unwrap().push_str(id.lexeme);
+            self.emit_constant_instruction(OpCode::SetGlobal, object, id.line);
         }
 
         Ok(())

@@ -23,7 +23,7 @@ pub fn interpret(source: &str, vm: &mut VM, mut err_writer: impl Write) {
     let main = Compiler::new(parser, vm.heap_mut()).compile();
     match main {
         Ok(main) => {
-            let frame = Frame::new(Rc::new(Closure::new(Rc::new(main))), 0);
+            let frame = Frame::new(Rc::new(Closure::new(Rc::new(main), 0)), 0);
             if let Err(e) = vm.run(frame) {
                 writeln!(err_writer, "{e}").unwrap();
             }

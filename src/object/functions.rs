@@ -4,6 +4,7 @@ pub struct Function {
     pub name: String,
     pub arity: u8,
     pub chunk: Chunk,
+    pub upvalue_count: usize,
 }
 
 impl std::fmt::Debug for Function {
@@ -18,6 +19,7 @@ impl Function {
             name,
             arity,
             chunk: Chunk::new(),
+            upvalue_count: 0,
         }
     }
 }

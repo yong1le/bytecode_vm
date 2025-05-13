@@ -110,7 +110,6 @@ fn test_return() {
 }
 
 #[test]
-#[ignore]
 fn test_closure() {
     run_test_suite("closure");
 }

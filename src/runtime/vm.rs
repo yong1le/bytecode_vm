@@ -11,7 +11,7 @@ use crate::{
     },
     object::{
         native::{Clock, Sqrt},
-        Closure, Function, Object,
+        Closure, Function, Object, VMUpvalue,
     },
 };
 
@@ -63,7 +63,7 @@ impl<'a> VM<'a> {
     pub fn new(writer: Box<dyn Write + 'a>) -> Self {
         let mut vm = Self {
             frame: Frame::new(
-                Rc::new(Closure::new(Rc::new(Function::new("".to_string(), 0)))),
+                Rc::new(Closure::new(Rc::new(Function::new("".to_string(), 0)), 0)),
                 0,
             ),
             frame_count: 1,
@@ -180,6 +180,31 @@ impl VM<'_> {
                 Ok(OpCode::GetLocalLong) => self.run_get_local(3)?,
                 Ok(OpCode::SetLocal) => self.run_set_local(1)?,
                 Ok(OpCode::SetLocalLong) => self.run_set_local(3)?,
+                Ok(OpCode::GetUpvalue) => {
+                    self.increment_ip(1);
+                    let index = self.read_operand(1);
+                    match self.frame.closure.upvalues[index] {
+                        VMUpvalue::Open(index) => {
+                            self.stack.push(self.stack[index]);
+                        }
+                        VMUpvalue::Closed(index) => {
+                            self.stack.push(Value::object(index));
+                        }
+                    }
+                }
+                Ok(OpCode::SetUpvalue) => {
+                    let value = self.stack_peek(0);
+                    self.increment_ip(1);
+                    let index = self.read_operand(1);
+                    match self.frame.closure.upvalues[index] {
+                        VMUpvalue::Open(index) => {
+                            self.stack[index] = value;
+                        }
+                        VMUpvalue::Closed(index) => {
+                            self.heap.set(index, value);
+                        }
+                    }
+                }
                 Ok(OpCode::JumpIfFalse) => self.run_jump_if()?,
                 Ok(OpCode::Jump) => self.run_jump()?,
                 Ok(OpCode::Loop) => self.run_loop()?,
@@ -547,13 +572,30 @@ impl VM<'_> {
         self.increment_ip(1);
         let function_idx = self.read_operand(operands);
 
-        if let Some(Object::Function(function)) = self.heap_get(&Value::object(function_idx)) {
-            let closure = Closure::new(function.clone());
-            let closure_idx = self.heap.push(Object::Closure(Rc::new(closure)));
-            self.stack_push(closure_idx);
-        } else {
-            panic!("PANIC IN RUN CLOSURE")
+        let mut closure =
+            if let Some(Object::Function(function)) = self.heap_get(&Value::object(function_idx)) {
+                // compiler already checked that upvalue_count <= 256
+                Closure::new(function.clone(), function.upvalue_count as u8)
+            } else {
+                panic!("Attemping to create closure on non-function object.")
+            };
+
+        for _ in 0..closure.upvalue_count {
+            let is_local = self.read_operand(1) != 0;
+            let upvalue_idx = self.read_operand(1);
+            if is_local {
+                closure
+                    .upvalues
+                    .push(VMUpvalue::Open(self.frame.fp + upvalue_idx)) // store absolute index on stack
+            } else {
+                closure
+                    .upvalues
+                    .push(self.frame.closure.upvalues[upvalue_idx]) // Copy, not Clone, upvalue
+            }
         }
+
+        let closure_idx = self.heap.push(Object::Closure(Rc::new(closure)));
+        self.stack_push(closure_idx);
 
         Ok(())
     }

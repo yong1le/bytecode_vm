@@ -9,6 +9,12 @@ pub struct Local {
     name: String,
     depth: usize,
     init: bool,
+    is_captured: bool,
+}
+
+pub struct CompilerUpvalue {
+    pub(crate) index: usize,
+    pub(crate) is_local: bool,
 }
 
 impl Local {
@@ -17,11 +23,16 @@ impl Local {
             name,
             depth,
             init: false,
+            is_captured: false,
         }
     }
 
     pub fn initialize(&mut self) {
         self.init = true;
+    }
+
+    pub fn capture(&mut self) {
+        self.is_captured = true;
     }
 }
 
@@ -97,5 +108,35 @@ impl Compiler<'_> {
                 }
             }
         }
+    }
+
+    pub(crate) fn resolve_upvalue(
+        &mut self,
+        name: &str,
+        line: u32,
+    ) -> Result<Option<usize>, InterpretError> {
+        match self.enclosing {
+            None => Ok(None),
+            Some(enclosing) => {
+                let local = unsafe { (*enclosing).resolve_local(name, line)? };
+                match local {
+                    Some(stack_index) => Ok(Some(self.add_upvalue(stack_index, true))),
+                    None => {
+                        let upvalue = unsafe { (*enclosing).resolve_upvalue(name, line) }?;
+                        match upvalue {
+                            Some(stack_index) => Ok(Some(self.add_upvalue(stack_index, true))),
+                            None => Ok(None),
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn add_upvalue(&mut self, index: usize, is_local: bool) -> usize {
+        self.upvalues.push(CompilerUpvalue { index, is_local });
+        self.function.upvalue_count += 1;
+
+        self.function.upvalue_count - 1
     }
 }

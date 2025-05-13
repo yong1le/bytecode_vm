@@ -3,7 +3,7 @@ use crate::core::token::Token;
 use super::expr::Expr;
 
 /// Enum to represent different types of statements in the AST.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum Stmt {
     Print(Token, Expr),
     Expr(Token, Expr),
