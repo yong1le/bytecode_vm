@@ -124,7 +124,7 @@ impl Compiler<'_> {
                     None => {
                         let upvalue = unsafe { (*enclosing).resolve_upvalue(name, line) }?;
                         match upvalue {
-                            Some(stack_index) => Ok(Some(self.add_upvalue(stack_index, true))),
+                            Some(stack_index) => Ok(Some(self.add_upvalue(stack_index, false))),
                             None => Ok(None),
                         }
                     }
