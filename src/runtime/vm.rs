@@ -417,12 +417,6 @@ impl VM<'_> {
 
         let name_value = self.get_chunk().constants[index];
 
-        println!(
-            "Setting {} to {}",
-            self.format_value(&name_value),
-            self.format_value(&value)
-        );
-
         match self.globals.contains_key(&name_value.bits) {
             true => {
                 self.globals.insert(name_value.bits, value);
