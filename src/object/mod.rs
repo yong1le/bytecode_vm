@@ -1,6 +1,5 @@
 mod closure;
 mod functions;
-mod upvalue;
 
 pub mod native;
 
@@ -9,7 +8,6 @@ use std::rc::Rc;
 pub use closure::Closure;
 pub use functions::Function;
 use native::Native;
-pub use upvalue::VMUpvalue;
 
 use crate::core::Value;
 

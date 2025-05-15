@@ -214,7 +214,7 @@ pub enum OpCode {
     ///
     /// ### Operand
     /// - 1 byte: index into stack for variable name
-    /// - 3 bytes: index into constant pool for variable name (index > 255)
+    /// - 3 bytes: index into stack for variable name (index > 255)
     ///
     /// ### Stack effect
     /// - Before: `[value]`

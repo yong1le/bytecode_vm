@@ -1,17 +1,16 @@
 mod frame;
 mod heap;
 mod stack;
+mod upvalue;
 mod vm;
 
 pub use frame::Frame;
 pub use heap::Heap;
 use rustc_hash::FxHashMap;
 use slab::Slab;
+use upvalue::VMUpvalue;
 
-use crate::{
-    core::{errors::InterpretError, Value},
-    object::VMUpvalue,
-};
+use crate::core::{errors::InterpretError, Value};
 use std::io::Write;
 
 type Return = Result<(), InterpretError>;

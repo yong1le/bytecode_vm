@@ -3,7 +3,7 @@ use std::{io::Write, rc::Rc};
 use rustc_hash::FxHashMap;
 use slab::Slab;
 
-use super::{frame::Frame, heap::Heap, Return, FRAME_MAX, STACK_MAX, VM};
+use super::{frame::Frame, heap::Heap, upvalue::VMUpvalue, Return, FRAME_MAX, STACK_MAX, VM};
 use crate::{
     bytecode::Chunk,
     core::{
@@ -12,7 +12,7 @@ use crate::{
     },
     object::{
         native::{Clock, Sqrt},
-        Closure, Function, Object, VMUpvalue,
+        Closure, Function, Object,
     },
 };
 
@@ -151,7 +151,7 @@ impl VM<'_> {
                 eprint!("\n\x1b[38;5;248m");
                 self.stack_dump();
                 self.heap.dump();
-                self.get_chunk().disassemble_instruction(ip);
+                self.get_chunk().disassemble_instruction(ip, self);
                 eprint!("\x1b[0m");
             }
 

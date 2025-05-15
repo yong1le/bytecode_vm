@@ -1,4 +1,10 @@
-use crate::core::{OpCode, Value};
+use std::sync::atomic::compiler_fence;
+
+use crate::{
+    core::{OpCode, Value},
+    object::Object,
+    VM,
+};
 
 pub struct Chunk {
     pub code: Vec<u8>,
@@ -51,17 +57,17 @@ impl Chunk {
         0
     }
 
-    pub fn disassemble(&self, name: &str) {
+    pub fn disassemble(&self, name: &str, vm: &VM) {
         eprintln!("== {} ==", name);
         let mut offset = 0;
 
         let len = self.code.len();
         while offset < len {
-            offset = self.disassemble_instruction(offset);
+            offset = self.disassemble_instruction(offset, vm);
         }
     }
 
-    pub fn disassemble_instruction(&self, mut offset: usize) -> usize {
+    pub fn disassemble_instruction(&self, mut offset: usize, vm: &VM) -> usize {
         let instruction = self.code[offset];
         let line = self.get_line(offset);
 
@@ -80,20 +86,25 @@ impl Chunk {
                 OpCode::LoadConstant
                 | OpCode::DefineGlobal
                 | OpCode::GetGlobal
-                | OpCode::SetGlobal => self.disassemble_constant_instruction(op, offset),
+                | OpCode::SetGlobal => self.disassemble_constant_instruction(op, 1, offset, vm),
                 OpCode::LoadConstantLong
                 | OpCode::DefineGlobalLong
                 | OpCode::GetGlobalLong
-                | OpCode::SetGlobalLong => self.disassemble_constant_long_instruction(op, offset),
-                OpCode::GetLocal | OpCode::SetLocal | OpCode::Call | OpCode::Closure => {
-                    self.disassemble_num_instruction(op, offset)
+                | OpCode::SetGlobalLong => self.disassemble_constant_instruction(op, 3, offset, vm),
+                OpCode::GetLocal | OpCode::SetLocal => {
+                    self.disassemble_stack_instruction(op, 1, offset, vm)
                 }
-                OpCode::GetLocalLong | OpCode::SetLocalLong | OpCode::ClosureLong => {
-                    self.disassemble_num_long_instruction(op, offset)
+                OpCode::GetLocalLong | OpCode::SetLocalLong => {
+                    self.disassemble_stack_instruction(op, 3, offset, vm)
                 }
+                OpCode::Call => self.disassemble_num_instruction(op, 1, offset),
                 OpCode::Jump | OpCode::JumpIfFalse | OpCode::Loop => {
-                    self.disassemble_num_mid_instruction(op, offset)
+                    self.disassemble_num_instruction(op, 2, offset)
                 }
+                OpCode::GetUpvalue | OpCode::SetUpvalue => {
+                    self.disassemble_upvalue_instruction(op, 1, offset, vm)
+                }
+                OpCode::Closure => self.disassemble_closure(op, 1, offset, vm),
                 _ => self.disassemble_simple_instruction(op),
             },
             Err(_) => {
@@ -105,7 +116,7 @@ impl Chunk {
         offset
     }
 
-    fn read_operand(&self, operands: u8, offset: usize) -> usize {
+    fn read_operand(&self, operands: usize, offset: usize) -> usize {
         if operands == 3 {
             let low_byte = self.code[offset + 1] as usize;
             let mid_byte = self.code[offset + 2] as usize;
@@ -127,36 +138,91 @@ impl Chunk {
         1
     }
 
-    fn disassemble_constant_instruction(&self, op: OpCode, offset: usize) -> usize {
-        let constant_idx = self.read_operand(1, offset);
+    /// Disassemble instruction that indexes into the constant pool
+    fn disassemble_constant_instruction(
+        &self,
+        op: OpCode,
+        operands: usize,
+        offset: usize,
+        vm: &VM,
+    ) -> usize {
+        let constant_idx = self.read_operand(operands, offset);
         let constant = self.constants[constant_idx];
-        eprintln!("{:<16?} {:>4} '{:?}'", op, constant_idx, constant);
-        2
+        eprintln!(
+            "{:<16?} {:>4} '{:?}'",
+            op,
+            constant_idx,
+            vm.format_value(&constant)
+        );
+        operands + 1
     }
 
-    fn disassemble_constant_long_instruction(&self, op: OpCode, offset: usize) -> usize {
-        let constant_idx = self.read_operand(3, offset);
-        let constant = self.constants.get(constant_idx).unwrap();
-        eprintln!("{:<16?} {:>4} '{:?}'", op, constant_idx, constant);
-        4
+    /// Disasemble instruction that indexes into the VM stack
+    fn disassemble_stack_instruction(
+        &self,
+        op: OpCode,
+        operands: usize,
+        offset: usize,
+        vm: &VM,
+    ) -> usize {
+        let stack_idx = self.read_operand(operands, offset);
+        let stack_value = vm.stack_get(stack_idx);
+        eprintln!(
+            "{:<16?} {:>4} '{:}'",
+            op,
+            stack_idx,
+            vm.format_value(&stack_value)
+        );
+        operands + 1
     }
 
-    fn disassemble_num_instruction(&self, op: OpCode, offset: usize) -> usize {
-        let constant_idx = self.read_operand(1, offset);
-        eprintln!("{:<16?} {:>4}", op, constant_idx);
-        2
+    /// Disassemble instruction that indexes into the current frame's upvalues array
+    fn disassemble_upvalue_instruction(
+        &self,
+        op: OpCode,
+        operands: usize,
+        offset: usize,
+        vm: &VM,
+    ) -> usize {
+        let upvalue_idx = self.read_operand(operands, offset);
+        let upvalue = vm.upvalue_get(upvalue_idx as u8);
+        eprintln!(
+            "{:<16?} {:>4} '{}'",
+            op,
+            upvalue_idx,
+            vm.format_value(&upvalue)
+        );
+        operands + 1
     }
 
-    fn disassemble_num_mid_instruction(&self, op: OpCode, offset: usize) -> usize {
-        let constant_idx = self.read_operand(2, offset);
-        eprintln!("{:<16?} {:>4}", op, constant_idx);
-        3
+    // Disassemble instruction that takes a number as an argument (rather than indexing somehwere).
+    fn disassemble_num_instruction(&self, op: OpCode, operands: usize, offset: usize) -> usize {
+        let number = self.read_operand(operands, offset);
+        eprintln!("{:<16?} {:>4}", op, number);
+        operands + 1
     }
 
-    fn disassemble_num_long_instruction(&self, op: OpCode, offset: usize) -> usize {
-        let constant_idx = self.read_operand(3, offset);
-        eprintln!("{:<16?} {:>4}", op, constant_idx);
-        4
+    fn disassemble_closure(&self, op: OpCode, operands: usize, offset: usize, vm: &VM) -> usize {
+        let mut operands = operands;
+        let heap_idx = self.read_operand(operands, offset);
+        operands += 1;
+
+        let function_idx = Value::object(heap_idx);
+        eprintln!(
+            "{:<16?} {:>4} '{}'",
+            op,
+            heap_idx,
+            vm.format_value(&function_idx)
+        );
+        if let Some(Object::Function(function)) = vm.heap_get(&function_idx) {
+            for _ in 0..function.upvalue_count {
+                operands += 2;
+            }
+        } else {
+            panic!("Closure on non function.")
+        }
+
+        operands
     }
 }
 
