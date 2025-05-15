@@ -4,7 +4,7 @@ mod upvalue;
 
 pub mod native;
 
-use std::{cell::RefCell, rc::Rc};
+use std::rc::Rc;
 
 pub use closure::Closure;
 pub use functions::Function;
@@ -18,5 +18,5 @@ pub enum Object {
     Function(Rc<Function>),
     Native(Rc<dyn Native>),
     Closure(Rc<Closure>),
-    UpValue(Rc<RefCell<Value>>),
+    UpValue(Value),
 }

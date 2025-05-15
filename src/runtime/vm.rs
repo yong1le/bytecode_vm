@@ -1,4 +1,4 @@
-use std::{cell::RefCell, io::Write, rc::Rc};
+use std::{io::Write, rc::Rc};
 
 use rustc_hash::FxHashMap;
 use slab::Slab;
@@ -190,7 +190,13 @@ impl VM<'_> {
                             self.stack.push(self.stack[index]);
                         }
                         VMUpvalue::Closed(index) => {
-                            self.stack.push(Value::object(index));
+                            let actual_value = self.heap.get(&Value::object(index));
+                            match actual_value {
+                                Some(Object::UpValue(value)) => self.stack.push(*value),
+                                _ => {
+                                    panic!("PANIC!: value is not uvpalue")
+                                }
+                            }
                         }
                     }
                 }
@@ -573,9 +579,7 @@ impl VM<'_> {
             if let VMUpvalue::Open(stack_index) = up {
                 if stack_index < self.stack.len() {
                     let value_on_stack = self.stack[stack_index];
-                    let index = self
-                        .heap
-                        .push(Object::UpValue(Rc::new(RefCell::new(value_on_stack))));
+                    let index = self.heap.push(Object::UpValue(value_on_stack));
                     self.upvalues[i] = VMUpvalue::Closed(index.as_object());
                 }
             } else {
@@ -663,9 +667,7 @@ impl VM<'_> {
 
         // If we found a matching upvalue, close it
         if let Some(idx) = upvalue_idx {
-            let heap_idx = self
-                .heap
-                .push(Object::UpValue(Rc::new(RefCell::new(open_upvalue))));
+            let heap_idx = self.heap.push(Object::UpValue(open_upvalue));
             self.upvalues[idx] = VMUpvalue::Closed(heap_idx.as_object());
         }
 
