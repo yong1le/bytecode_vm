@@ -291,6 +291,8 @@ pub enum OpCode {
     /// Long version of  [`OpCode::Closure`]
     ClosureLong,
 
+    CloseUpvalue,
+
     /// No operation, discards the byte.
     Nop,
 }

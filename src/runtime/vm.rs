@@ -1,6 +1,7 @@
-use std::{io::Write, rc::Rc};
+use std::{cell::RefCell, io::Write, rc::Rc};
 
 use rustc_hash::FxHashMap;
+use slab::Slab;
 
 use super::{frame::Frame, heap::Heap, Return, FRAME_MAX, STACK_MAX, VM};
 use crate::{
@@ -70,6 +71,7 @@ impl<'a> VM<'a> {
             stack: Vec::with_capacity(STACK_MAX),
             heap: Heap::new(),
             globals: FxHashMap::default(),
+            upvalues: Slab::new(),
             writer,
         };
 
@@ -183,7 +185,7 @@ impl VM<'_> {
                 Ok(OpCode::GetUpvalue) => {
                     self.increment_ip(1);
                     let index = self.read_operand(1);
-                    match self.frame.closure.upvalues[index] {
+                    match self.upvalues[self.frame.closure.upvalues[index]] {
                         VMUpvalue::Open(index) => {
                             self.stack.push(self.stack[index]);
                         }
@@ -196,7 +198,7 @@ impl VM<'_> {
                     let value = self.stack_peek(0);
                     self.increment_ip(1);
                     let index = self.read_operand(1);
-                    match self.frame.closure.upvalues[index] {
+                    match self.upvalues[self.frame.closure.upvalues[index]] {
                         VMUpvalue::Open(index) => {
                             self.stack[index] = value;
                         }
@@ -211,6 +213,7 @@ impl VM<'_> {
                 Ok(OpCode::Call) => self.run_call()?,
                 Ok(OpCode::Closure) => self.run_closure(1)?,
                 Ok(OpCode::ClosureLong) => self.run_closure(3)?,
+                Ok(OpCode::CloseUpvalue) => self.run_upvalue()?,
                 Ok(OpCode::Return) => {
                     if self.run_return()? {
                         return Ok(());
@@ -413,7 +416,12 @@ impl VM<'_> {
         let index = self.read_operand(operands);
 
         let name_value = self.get_chunk().constants[index];
-        // let name = self.get_variable_name(&name_value, ip)?;
+
+        println!(
+            "Setting {} to {}",
+            self.format_value(&name_value),
+            self.format_value(&value)
+        );
 
         match self.globals.contains_key(&name_value.bits) {
             true => {
@@ -552,6 +560,35 @@ impl VM<'_> {
         let new_stack_top = self.frame.fp;
         let caller = self.frame.caller.take();
 
+        let pred = |up: &VMUpvalue| {
+            if let VMUpvalue::Open(i) = up {
+                *i >= new_stack_top
+            } else {
+                false
+            }
+        };
+
+        let stack_indices_to_pop: Vec<usize> = self
+            .upvalues
+            .iter()
+            .filter_map(|(i, x)| if pred(x) { Some(i) } else { None })
+            .collect();
+
+        for i in stack_indices_to_pop {
+            let up = self.upvalues[i];
+            if let VMUpvalue::Open(stack_index) = up {
+                if stack_index < self.stack.len() {
+                    let value_on_stack = self.stack[stack_index];
+                    let index = self
+                        .heap
+                        .push(Object::UpValue(Rc::new(RefCell::new(value_on_stack))));
+                    self.upvalues[i] = VMUpvalue::Closed(index.as_object());
+                }
+            } else {
+                panic!("THIS NOT SUPOSED TO HAPPEN")
+            }
+        }
+
         self.frame_count -= 1;
         match caller {
             Some(caller) => {
@@ -582,20 +619,61 @@ impl VM<'_> {
 
         for _ in 0..closure.upvalue_count {
             let is_local = self.read_operand(1) != 0;
-            let upvalue_idx = self.read_operand(1);
+            let rel_stack_index = self.read_operand(1);
+            let stack_index = rel_stack_index + self.frame.fp;
+
             if is_local {
-                closure
-                    .upvalues
-                    .push(VMUpvalue::Open(self.frame.fp + upvalue_idx)) // store absolute index on stack
+                let upvalue_index = self.upvalues.iter().rfind(|(_, b)| match b {
+                    VMUpvalue::Open(i) => *i == stack_index,
+                    _ => false,
+                });
+
+                match upvalue_index {
+                    Some((index, _)) => {
+                        closure.upvalues.push(index);
+                    }
+                    None => {
+                        let upvalue = VMUpvalue::Open(stack_index);
+                        let index = self.upvalues.insert(upvalue);
+                        closure.upvalues.push(index);
+                    }
+                }
             } else {
                 closure
                     .upvalues
-                    .push(self.frame.closure.upvalues[upvalue_idx]) // Copy, not Clone, upvalue
+                    .push(self.frame.closure.upvalues[rel_stack_index])
             }
         }
 
         let closure_idx = self.heap.push(Object::Closure(Rc::new(closure)));
         self.stack_push(closure_idx);
+
+        Ok(())
+    }
+
+    fn run_upvalue(&mut self) -> Return {
+        self.increment_ip(1);
+        let stack_idx = self.stack.len() - 1;
+        let open_upvalue = self.stack_pop();
+
+        // Find the upvalue index
+        let mut upvalue_idx = None;
+        for (idx, upvalue) in self.upvalues.iter() {
+            if let VMUpvalue::Open(i) = *upvalue {
+                if i == stack_idx {
+                    upvalue_idx = Some(idx);
+                    break;
+                }
+            }
+        }
+
+        // If we found a matching upvalue, close it
+        if let Some(idx) = upvalue_idx {
+            let heap_idx = self
+                .heap
+                .push(Object::UpValue(Rc::new(RefCell::new(open_upvalue))));
+            self.upvalues[idx] = VMUpvalue::Closed(heap_idx.as_object());
+        }
 
         Ok(())
     }

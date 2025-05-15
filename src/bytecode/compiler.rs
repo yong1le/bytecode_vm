@@ -1,7 +1,4 @@
-use std::{
-    mem::{self, MaybeUninit},
-    rc::Rc,
-};
+use std::rc::Rc;
 
 use crate::{
     ast::{
@@ -74,9 +71,9 @@ impl StmtVisitor<Return> for Compiler<'_> {
 
         // send JUMP here to include it inside the if_block
         let else_offset = self.emit_jump_instruction(OpCode::Jump, token.line);
-        self.emit_byte(OpCode::Pop as u8, token.line); // removes condition value off stack
 
         self.patch_jump_instruction(if_offset, token.line)?;
+        self.emit_byte(OpCode::Pop as u8, token.line); // removes condition value off stack
 
         if let Some(else_block) = else_block {
             self.compile_stmt(*else_block)?;
@@ -103,7 +100,6 @@ impl StmtVisitor<Return> for Compiler<'_> {
 
     fn visit_declare_func(&mut self, id: Token, params: Vec<Token>, body: Vec<Stmt>) -> Return {
         self.declare_local(id.lexeme.clone(), id.line)?;
-        self.define_local();
 
         // Now, self.heap is None, and if we try to access it, we will get panic error. In general,
         // any compiler code should not access enclosing.heap
@@ -133,15 +129,15 @@ impl StmtVisitor<Return> for Compiler<'_> {
                 new_compiler.compile_stmt(stmt)?;
             }
 
-            // Default 'return nil'. Frame exists at first return, so it will not run if there
+            // Default 'return nil'. Frame exits at first return, so it will not run if there
             // is already a return in the function
             new_compiler.emit_constant_instruction(OpCode::LoadConstant, Value::nil(), id.line);
             new_compiler.emit_byte(OpCode::Return as u8, id.line);
         }
 
-        self.heap = new_compiler.heap.take(); // take back our original heap
-        let upvalues = mem::take(&mut new_compiler.upvalues);
+        let upvalues = new_compiler.upvalues;
         let new_function = new_compiler.function; // get the compiled function
+        self.heap = new_compiler.heap.take(); // take back our original heap
 
         if upvalues.len() > 256 {
             panic!("Cannot have more than 256 upvalues in a closure.")
@@ -164,6 +160,7 @@ impl StmtVisitor<Return> for Compiler<'_> {
             self.emit_constant_instruction(OpCode::DefineGlobal, function_name_idx, id.line);
         }
 
+        self.define_local();
         Ok(())
     }
 
@@ -171,7 +168,6 @@ impl StmtVisitor<Return> for Compiler<'_> {
         if self.function_type == FunctionType::Main {
             return Err(InterpretError::Compile(CompileError::TopReturn(token.line)));
         }
-
         self.compile_expr(expr)?;
         self.emit_byte(OpCode::Return as u8, token.line);
         Ok(())

@@ -5,6 +5,7 @@ use crate::core::{
 
 use super::{Compiler, Return};
 
+#[derive(Debug)]
 pub struct Local {
     name: String,
     depth: usize,
@@ -44,18 +45,24 @@ impl Compiler<'_> {
     pub(crate) fn end_scope(&mut self) {
         self.scope_depth -= 1;
 
-        // Remove all local variables from that block
-        let mut to_remove = 0;
-        self.locals.retain(|l| {
-            if l.depth > self.scope_depth {
-                to_remove += 1;
-                false
+        let index = self
+            .locals
+            .iter()
+            .rposition(|l| l.depth <= self.scope_depth)
+            .unwrap_or(0);
+
+        let to_remove = self.locals.split_off(index + 1);
+
+        self.remove_locals(to_remove);
+    }
+
+    pub(crate) fn remove_locals(&mut self, locals: Vec<Local>) {
+        for local in locals.iter().rev() {
+            if local.is_captured {
+                self.emit_byte(OpCode::CloseUpvalue as u8, 0);
             } else {
-                true
+                self.emit_byte(OpCode::Pop as u8, 0);
             }
-        });
-        for _ in 0..to_remove {
-            self.emit_byte(OpCode::Pop as u8, 0);
         }
     }
 
@@ -120,7 +127,13 @@ impl Compiler<'_> {
             Some(enclosing) => {
                 let local = unsafe { (*enclosing).resolve_local(name, line)? };
                 match local {
-                    Some(stack_index) => Ok(Some(self.add_upvalue(stack_index, true))),
+                    Some(stack_index) => {
+                        unsafe {
+                            (*enclosing).locals[stack_index].capture();
+                        }
+                        let i = self.add_upvalue(stack_index, true);
+                        Ok(Some(i))
+                    }
                     None => {
                         let upvalue = unsafe { (*enclosing).resolve_upvalue(name, line) }?;
                         match upvalue {
@@ -133,10 +146,22 @@ impl Compiler<'_> {
         }
     }
 
-    fn add_upvalue(&mut self, index: usize, is_local: bool) -> usize {
-        self.upvalues.push(CompilerUpvalue { index, is_local });
-        self.function.upvalue_count += 1;
+    fn add_upvalue(&mut self, stack_index: usize, is_local: bool) -> usize {
+        let existing_index = self
+            .upvalues
+            .iter()
+            .position(|up| up.index == stack_index && up.is_local == is_local);
 
-        self.function.upvalue_count - 1
+        match existing_index {
+            Some(index) => index,
+            None => {
+                self.upvalues.push(CompilerUpvalue {
+                    index: stack_index,
+                    is_local,
+                });
+                self.function.upvalue_count += 1;
+                self.upvalues.len() - 1
+            }
+        }
     }
 }

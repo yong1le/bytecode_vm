@@ -1,12 +1,12 @@
 use std::rc::Rc;
 
-use super::{Function, VMUpvalue};
+use super::Function;
 
 #[derive(Debug)]
 pub struct Closure {
     pub function: Rc<Function>,
     pub upvalue_count: u8,
-    pub upvalues: Vec<VMUpvalue>,
+    pub upvalues: Vec<usize>, // Index into VM upvalues array, is this extra level of indirection worth it?
 }
 
 impl Closure {

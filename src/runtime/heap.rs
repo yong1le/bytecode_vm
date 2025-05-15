@@ -70,8 +70,11 @@ impl Heap {
             Object::String(s) => s.to_string(),
             Object::Function(f) => format!("<fn {}>", f.name),
             Object::Native(f) => format!("<fn {}>", f.name()),
-            Object::Closure(f) => format!("<fn {}>", f.function.name),
-            Object::UpValue(v) => "<upvalue>".to_string(),
+            Object::Closure(f) => format!("<closure {}>", f.function.name),
+            Object::UpValue(v) => match v.borrow() {
+                o if o.is_object() => self.format_value(self.get(&o).unwrap()),
+                a => format!("{:?}", a),
+            },
         }
     }
 }

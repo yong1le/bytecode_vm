@@ -1,11 +1,12 @@
-fun fib(n) {
-    if (n < 2) {
-        return n;
+fun make_counter() {
+    var count = 0;
+    fun inc() {
+        count = count + 1;
+        return count;
     }
-
-    return fib(n - 1) + fib(n - 2);
+    return inc;
 }
 
-var start = clock();
-print fib(40);
-print clock() - start;
+var counter = make_counter();
+print counter(); // 1
+print counter(); // 2

@@ -6,8 +6,12 @@ mod vm;
 pub use frame::Frame;
 pub use heap::Heap;
 use rustc_hash::FxHashMap;
+use slab::Slab;
 
-use crate::core::{errors::InterpretError, Value};
+use crate::{
+    core::{errors::InterpretError, Value},
+    object::VMUpvalue,
+};
 use std::io::Write;
 
 type Return = Result<(), InterpretError>;
@@ -17,10 +21,10 @@ pub const STACK_MAX: usize = 256;
 
 pub struct VM<'a> {
     frame: Frame,
+    frame_count: usize,
     stack: Vec<Value>,
     heap: Heap,
     globals: FxHashMap<u64, Value>,
+    upvalues: Slab<VMUpvalue>,
     writer: Box<dyn Write + 'a>,
-
-    frame_count: usize,
 }
