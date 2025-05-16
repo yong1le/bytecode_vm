@@ -12,7 +12,7 @@ impl VM<'_> {
     pub fn upvalue_get(&self, index: u8) -> Value {
         match self.upvalues[self.frame.closure.upvalues[index as usize]] {
             VMUpvalue::Open(index) => self.stack[index],
-            VMUpvalue::Closed(index) => return Value::object(index),
+            VMUpvalue::Closed(index) => Value::object(index),
         }
     }
 }

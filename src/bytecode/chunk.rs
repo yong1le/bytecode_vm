@@ -1,9 +1,7 @@
-use std::sync::atomic::compiler_fence;
-
 use crate::{
+    VM,
     core::{OpCode, Value},
     object::Object,
-    VM,
 };
 
 pub struct Chunk {

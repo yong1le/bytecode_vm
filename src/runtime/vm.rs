@@ -18,7 +18,7 @@ use crate::{
 
 /// Compares if
 macro_rules! binary_op {
-    ($self:expr, $op:tt) => {
+    ($self:expr_2021, $op:tt) => {
         {
             let right = $self.stack_pop();
             let left = $self.stack_pop();
@@ -40,7 +40,7 @@ macro_rules! binary_op {
 
 // For comparison operators that return boolean
 macro_rules! compare_op {
-    ($self:expr, $op:tt) => {
+    ($self:expr_2021, $op:tt) => {
         {
             let right = $self.stack_pop();
             let left = $self.stack_pop();
